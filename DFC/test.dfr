@@ -55,3 +55,4 @@ true ~123 123 assert-equal
 test-var #6 + =test-var
 
 [ 1 2 3 4 ] =test-vec-var
+test-vec-var 2 * =test-vec-var-x2

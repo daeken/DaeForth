@@ -28,6 +28,7 @@ namespace DaeForth {
 	public abstract class Ir {
 		public Type Type;
 		public virtual bool IsConstant => false;
+		public virtual bool IsFree => IsConstant;
 		
 		public static implicit operator Ir(List<Ir> e) => new List(e.ToList());
 
@@ -110,7 +111,8 @@ namespace DaeForth {
 
 			public Identifier(string name) => Name = name;
 			
-			public override bool IsConstant => true;
+			public override bool IsConstant => false;
+			public override bool IsFree => true;
 
 			public override string ToString() => $"Identifier({Name.ToPrettyString()})";
 		}

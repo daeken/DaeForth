@@ -28,13 +28,15 @@ namespace DaeForth {
 					compiler.PushValue(op.Value.Func(ica.Value, icb.Value));
 				else if(a.IsConstant && b.IsConstant && (a is Ir.List || b is Ir.List)) {
 					if(a is Ir.List la && b is Ir.List lb) {
-						if(la.Count != lb.Count) throw new CompilerException("Lists have different lengths for binary operation");
+						if(la.Count != lb.Count)
+							throw new CompilerException("Lists have different lengths for binary operation");
 						compiler.InjectToken("[");
 						for(var i = 0; i < la.Count; ++i) {
 							compiler.InjectToken(la[i]);
 							compiler.InjectToken(lb[i]);
 							compiler.InjectToken(op.Key);
 						}
+
 						compiler.InjectToken("]");
 					} else if(a is Ir.List las) {
 						compiler.InjectToken("[");
@@ -43,6 +45,7 @@ namespace DaeForth {
 							compiler.InjectToken(b);
 							compiler.InjectToken(op.Key);
 						}
+
 						compiler.InjectToken("]");
 					} else if(b is Ir.List lbs) {
 						compiler.InjectToken("[");
@@ -51,12 +54,13 @@ namespace DaeForth {
 							compiler.InjectToken(elem);
 							compiler.InjectToken(op.Key);
 						}
+
 						compiler.InjectToken("]");
 					}
 				} else
 					compiler.Push(new Ir.BinaryOperation {
-						Type = op.Value.Func(Activator.CreateInstance(a.Type), Activator.CreateInstance(b.Type))
-							.GetType(),
+						Type = op.Value.Func(Activator.CreateInstance(compiler.CanonicalizeValue(a).Type),
+							Activator.CreateInstance(compiler.CanonicalizeValue(b).Type)).GetType(),
 						Left = a, Right = b,
 						Op = op.Value.Op
 					});
