@@ -7,7 +7,14 @@ using PrettyPrinter;
 
 namespace DaeForth {
 	public class GlslBackend : Backend {
-		public override string GenerateCode(IEnumerable<WordContext> words) =>
+		public override string GenerateCode(IDictionary<string, (string Qualifier, Type Type)> globals,
+			IEnumerable<WordContext> words) =>
+			(globals.Count == 0
+				? ""
+				: string.Join('\n',
+					  globals.Select(x =>
+						  $"{x.Value.Qualifier ?? ""}{(x.Value.Qualifier != null ? " " : "")}{ToType(x.Value.Type)} {ToName(x.Key)};")) +
+				  "\n\n") +
 			string.Join("\n\n", words.Select(word => {
 				var body = "";
 				if(word.Locals.Count != 0)
@@ -24,7 +31,7 @@ namespace DaeForth {
 					$"({Transform(bop.Left)}) {bop.Op.ToOperator()} ({Transform(bop.Right)})", 
 				Ir.ConstValue<int> icv => icv.Value.ToString(), 
 				Ir.ConstValue<float> fcv => FormatFloat(fcv), 
-				Ir.List list => $"vec{list.Count}({string.Join(", ", list.Select(Transform))})", 
+				Ir.List list => $"vec{list.Count}({string.Join(", ", list.Select(x => Transform(x.CastTo(typeof(float)))))}", 
 				Ir.Identifier id => ToName(id.Name), 
 				_ => throw new NotImplementedException(expr.ToPrettyString())
 			};

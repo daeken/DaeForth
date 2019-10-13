@@ -31,6 +31,8 @@ namespace DaeForth {
 		public virtual bool IsFree => IsConstant;
 		
 		public static implicit operator Ir(List<Ir> e) => new List(e.ToList());
+		
+		public virtual Ir CastTo(Type type) => Type == type ? this : new Cast(type, this);
 
 		public class Assignment : Ir {
 			public new Identifier Identifier;
@@ -117,6 +119,15 @@ namespace DaeForth {
 			public override string ToString() => $"Identifier({Name.ToPrettyString()})";
 		}
 
+		public class Cast : Ir {
+			public Ir Value;
+
+			public Cast(Type type, Ir value) {
+				Type = type;
+				Value = value;
+			}
+		}
+
 		public interface IConstValue {
 			object Value { get; }
 		}
@@ -134,6 +145,16 @@ namespace DaeForth {
 			public static implicit operator ConstValue<T>(T v) => new ConstValue<T>(v);
 			
 			public override bool IsConstant => true;
+
+			public override Ir CastTo(Type type) {
+				if(Type == type) return this;
+
+				if(this is ConstValue<float> fcv && type == typeof(int))
+					return ((int) (float) fcv).Box();
+				if(this is ConstValue<int> icv && type == typeof(float))
+					return ((float) (int) icv).Box();
+				throw new NotImplementedException($"Unknown cast from {typeof(T).Name} to {type.Name}");
+			}
 
 			public override string ToString() => $"ConstValue<{typeof(T).Name}>({Value.ToPrettyString()})";
 		}

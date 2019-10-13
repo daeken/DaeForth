@@ -157,6 +157,24 @@ namespace DaeForth {
 
 			AddPrefixHandler("@",
 				(compiler, token) => compiler.InjectToken(compiler.TypeFromString(token.Value).Box()));
+			
+			AddWordHandler("uniform", compiler => {
+				var type = compiler.TryPop<Ir.ConstValue<Type>>();
+				if(type == null) throw new CompilerException("Uniform must be applied to a type");
+				compiler.Push(typeof(UniformType<>).MakeGenericType(type).Box());
+			});
+
+			AddWordHandler("varying", compiler => {
+				var type = compiler.TryPop<Ir.ConstValue<Type>>();
+				if(type == null) throw new CompilerException("Varying must be applied to a type");
+				compiler.Push(typeof(VaryingType<>).MakeGenericType(type).Box());
+			});
+
+			AddWordHandler("global", compiler => {
+				var type = compiler.TryPop<Ir.ConstValue<Type>>();
+				if(type == null) throw new CompilerException("Global must be applied to a type");
+				compiler.Push(typeof(GlobalType<>).MakeGenericType(type).Box());
+			});
 
 			AddWordHandler("((", compiler => {
 				var depth = 0;
@@ -325,6 +343,18 @@ namespace DaeForth {
 				compiler.InjectToken("]");
 
 				return true;
+			});
+			
+			AddWordHandler("mtimes", compiler => {
+				var count = compiler.TryPop<Ir.ConstValue<int>>();
+				if(count == null) throw new CompilerException("Count must be a constant integer");
+				if(count.Value < 0) throw new CompilerException("Count must be positive");
+				var block = compiler.Pop();
+				for(var i = 0; i < count; ++i) {
+					compiler.InjectToken(i.Box());
+					compiler.InjectToken(block);
+					compiler.InjectToken("call");
+				}
 			});
 			
 			AddWordHandler((compiler, token) => {

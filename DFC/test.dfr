@@ -56,3 +56,15 @@ test-var #6 + =test-var
 
 [ 1 2 3 4 ] =test-vec-var
 test-vec-var 2 * =test-vec-var-x2
+
+:m upto [ { } _ mtimes ] ;
+#5 upto [ 0 1 2 3 4 ] assert-all-equal
+
+#4 upto =test-range
+
+@int uniform =test-uniform-int
+@vec4 uniform =test-uniform-vec4
+@int varying =test-varying-int
+@int global =test-global-int
+
+test-global-int #5 + =test-global-int

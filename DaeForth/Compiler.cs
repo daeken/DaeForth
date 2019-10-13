@@ -40,6 +40,10 @@ namespace DaeForth {
 	public class CompilerException : Exception {
 		public CompilerException(string message) : base(message) {}
 	}
+	
+	class UniformType<T> { }
+	class VaryingType<T> { }
+	class GlobalType<T> { }
 
 	public class WordContext {
 		public readonly string Name;
@@ -63,6 +67,9 @@ namespace DaeForth {
 		public MacroLocals MacroLocals = new MacroLocals();
 		
 		public readonly Dictionary<string, Ir> Macros = new Dictionary<string, Ir>();
+
+		public readonly Dictionary<string, (string Qualifier, Type Type)> Globals =
+			new Dictionary<string, (string Qualifier, Type Type)>();
 		
 		public readonly WordContext MainContext = new WordContext("main");
 		public WordContext CurrentWord;
@@ -105,6 +112,11 @@ namespace DaeForth {
 							
 							if(!wordHandled && MacroLocals.TryGetValue(token.Value, out var value)) {
 								Push(value);
+								wordHandled = true;
+							}
+
+							if(!wordHandled && Globals.TryGetValue(token.Value, out var gtype)) {
+								Push(new Ir.Identifier(token.Value) { Type = gtype.Type });
 								wordHandled = true;
 							}
 
@@ -156,6 +168,10 @@ namespace DaeForth {
 		public Type TypeFromString(string type) =>
 			type switch {
 				"int" => typeof(int), 
+				"float" => typeof(float), 
+				"vec2" => typeof(Vector2), 
+				"vec3" => typeof(Vector3), 
+				"vec4" => typeof(Vector4), 
 				_ => throw new CompilerException($"Unknown type '{type}'")
 			};
 
@@ -164,7 +180,24 @@ namespace DaeForth {
 		public void AssignVariable(string name, Ir value) {
 			value = CanonicalizeValue(value);
 			var type = value is Ir.IConstValue icv && icv.Value is Type typespec ? typespec : value.Type;
-			if(CurrentWord.Locals.TryGetValue(name, out var knownType)) {
+			if(type.IsConstructedGenericType) {
+				var gtd = type.GetGenericTypeDefinition();
+				string qualifier;
+				if(gtd == typeof(UniformType<>)) qualifier = "uniform";
+				else if(gtd == typeof(VaryingType<>)) qualifier = "varying";
+				else if(gtd == typeof(GlobalType<>)) qualifier = null;
+				else throw new CompilerException($"Unknown generic type for variable assignment {type}");
+				type = type.GetGenericArguments()[0];
+				if(Globals.ContainsKey(name)) throw new CompilerException($"Redeclaration of global variable '{name}'");
+				Globals[name] = (qualifier, type);
+				return;
+			}
+
+			if(Globals.TryGetValue(name, out var gknownType)) {
+				if(gknownType.Type != type)
+					throw new CompilerException(
+						$"Global variable '{name}' has type {gknownType.Type.Name} but a {type.Name} ({value}) is being assigned");
+			} else if(CurrentWord.Locals.TryGetValue(name, out var knownType)) {
 				if(knownType != type)
 					throw new CompilerException(
 						$"Variable '{name}' has type {knownType.Name} but a {type.Name} ({value}) is being assigned");
@@ -223,12 +256,26 @@ namespace DaeForth {
 		public T Pop<T>() where T : Ir {
 			if(Stack.Count == 0) throw new CompilerException("Stack underflow");
 			var val = Stack.Pop();
-			if(!(val is T tval)) throw new CompilerException($"Expected {typeof(T).Name} on stack, got {val.GetType().Name}");
-			return tval;
+			if(val is T tval) return tval;
+			var otype = val.GetType();
+			if(otype.IsConstructedGenericType && otype.GetGenericTypeDefinition() == typeof(Ir.ConstValue<>) &&
+			   typeof(T).IsConstructedGenericType &&
+			   typeof(T).GetGenericTypeDefinition() == typeof(Ir.ConstValue<>) &&
+			   typeof(T).GetGenericArguments()[0].IsAssignableFrom(otype.GetGenericArguments()[0]))
+				return (T) Activator.CreateInstance(typeof(T), ((Ir.IConstValue) val).Value);
+			throw new CompilerException($"Expected {typeof(T).Name} on stack, got {val.GetType().Name}");
 		}
 		public Ir Pop() => Pop<Ir>();
 		public T TryPop<T>() where T : Ir {
-			if(Stack.Count != 0 && Stack.Peek() is T) return (T) Stack.Pop();
+			if(Stack.Count == 0) return null;
+			var obj = Stack.Peek();
+			if(obj is T) return (T) Stack.Pop();
+			var otype = obj.GetType();
+			if(otype.IsConstructedGenericType && otype.GetGenericTypeDefinition() == typeof(Ir.ConstValue<>) &&
+			   typeof(T).IsConstructedGenericType &&
+			   typeof(T).GetGenericTypeDefinition() == typeof(Ir.ConstValue<>) &&
+			   typeof(T).GetGenericArguments()[0].IsAssignableFrom(otype.GetGenericArguments()[0]))
+				return (T) Activator.CreateInstance(typeof(T), ((Ir.IConstValue) Stack.Pop()).Value);
 			return null;
 		}
 		
@@ -261,6 +308,6 @@ namespace DaeForth {
 			return enumerator.Current;
 		}
 
-		public string GenerateCode(Backend backend) => backend.GenerateCode(new[] { MainContext });
+		public string GenerateCode(Backend backend) => backend.GenerateCode(Globals, new[] { MainContext });
 	}
 }
