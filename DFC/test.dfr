@@ -44,3 +44,7 @@
 
 { #123450 #10 / } =>printer
 *printer #12345 assert-equal
+
+true ~{ 123 } 123 assert-equal
+true ~123 123 assert-equal
+123 false ~456 123 assert-equal 

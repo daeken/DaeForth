@@ -119,6 +119,18 @@ namespace DaeForth {
 				compiler.InjectToken("reduce");
 			});
 			
+			AddPrefixHandler("~", (compiler, token) => {
+				var cond = compiler.TryPop<Ir.ConstValue<bool>>();
+				if(cond == null) throw new CompilerException("Conditional compilation requires constant expression");
+				var block =
+					token.Value == "{"
+						? ParseBlock(compiler)
+						: token.Box();
+				if(!cond.Value) return;
+				compiler.InjectToken(block);
+				compiler.InjectToken("call");
+			});
+			
 			AddPrefixHandler("=>", (compiler, token) => compiler.MacroLocals[token.Value] = compiler.Pop());
 			AddPrefixHandler("=>[", (compiler, token) => throw new NotImplementedException());
 			AddPrefixHandler("=[", (compiler, token) => throw new NotImplementedException());
