@@ -48,8 +48,9 @@ namespace DaeForth {
 
 	public class WordContext {
 		public readonly string Name;
-		public Dictionary<string, Type> Locals = new Dictionary<string, Type>();
-		public readonly List<Ir> Body = new List<Ir>();
+		public readonly Dictionary<string, Type> Locals = new Dictionary<string, Type>();
+		public readonly Stack<List<Ir>> StmtStack = new Stack<List<Ir>>(new[] { new List<Ir>() });
+		public List<Ir> Body => StmtStack.Peek();
 
 		public WordContext(string name) => Name = name;
 	}

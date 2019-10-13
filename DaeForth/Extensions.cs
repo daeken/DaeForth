@@ -24,5 +24,13 @@ namespace DaeForth {
 				BinaryOp.GreaterThanOrEqual => ">=", 
 				_ => throw new NotImplementedException()
 			};
+
+		internal static string ToOperator(this UnaryOp op) =>
+			op switch {
+				UnaryOp.LogicalNegate => "!",
+				UnaryOp.BitwiseNegate => "~",
+				UnaryOp.Minus => "-",
+				_ => throw new NotImplementedException()
+			};
 	}
 }

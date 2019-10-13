@@ -95,6 +95,10 @@ namespace DaeForth {
 			public IList<Ir> Body;
 		}
 
+		public class If : Ir {
+			public Ir Cond, A, B;
+		}
+
 		public class Return : Ir {
 			public Ir Value; // Optional
 		}

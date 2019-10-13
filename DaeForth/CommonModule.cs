@@ -224,6 +224,17 @@ namespace DaeForth {
 				return true;
 			});
 			
+			AddWordHandler("call-collect", compiler => {
+				var block = compiler.Pop();
+				compiler.CurrentWord.StmtStack.Push(new List<Ir>());
+				compiler.InjectToken(block);
+				compiler.InjectToken("call");
+				compiler.InjectToken("~~complete-call-collect");
+			});
+
+			AddWordHandler("~~complete-call-collect",
+				compiler => compiler.Push(new Ir.List(compiler.CurrentWord.StmtStack.Pop())));
+			
 			AddWordHandler("cif", compiler => {
 				var cond = compiler.TryPop<Ir.ConstValue<bool>>();
 				if(cond == null) throw new CompilerException("Conditional compilation requires constant expression");
@@ -233,6 +244,25 @@ namespace DaeForth {
 				compiler.InjectToken("call");
 			});
 			
+			AddWordHandler("if", compiler => {
+				var cond = compiler.Pop();
+				var else_ = compiler.Pop();
+				var if_ = compiler.Pop();
+				compiler.InjectToken(if_);
+				compiler.InjectToken("call-collect");
+				compiler.InjectToken(else_);
+				compiler.InjectToken("call-collect");
+				compiler.InjectToken(cond);
+				compiler.InjectToken("~~if");
+			});
+			
+			AddWordHandler("~~if", compiler => {
+				var cond = compiler.Pop();
+				var else_ = compiler.Pop();
+				var if_ = compiler.Pop();
+				compiler.AddStmt(new Ir.If { Cond = cond, A = if_, B = else_ });
+			});
+
 			AddWordHandler("def-macro", compiler => {
 				var name = compiler.TryPop<Ir.ConstValue<Token>>()?.Value?.Value ??
 				           compiler.TryPop<Ir.ConstValue<string>>()?.Value;
