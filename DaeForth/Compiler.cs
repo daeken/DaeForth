@@ -4,153 +4,185 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using PrettyPrinter;
 
 namespace DaeForth {
-	public abstract class StackValue {
-	}
+	public class MacroLocals {
+		readonly List<Dictionary<string, Ir>> Scopes = new List<Dictionary<string, Ir>> {
+			new Dictionary<string, Ir>()
+		};
+		Dictionary<string, Ir> Values = new Dictionary<string, Ir>();
 
-	public class StackBoxed<T> : StackValue where T : struct {
-		public readonly T Value;
-		public StackBoxed(T value) => Value = value;
+		public Ir this[string name] {
+			get => Values[name];
+			set {
+				Values[name] = value;
+				foreach(var scope in Scopes) {
+					if(!scope.ContainsKey(name)) continue;
+					scope[name] = value;
+					return;
+				}
+				Scopes.Last()[name] = value;
+			}
+		}
+		
+		public void PushScope() => Scopes.Add(new Dictionary<string, Ir>());
 
-		public static implicit operator T(StackBoxed<T> box) => box.Value;
-		public static implicit operator StackBoxed<T>(T value) => new StackBoxed<T>(value);
-
-		public override string ToString() => Value.ToString();
-	}
-	
-	public class StackList : StackValue, IEnumerable<StackValue> {
-		public List<StackValue> Value = new List<StackValue>();
-		public int Count => Value.Count;
-
-		public void Add(StackValue value) => Value.Add(value);
-
-		public IEnumerator<StackValue> GetEnumerator() => Value.GetEnumerator();
-		IEnumerator IEnumerable.GetEnumerator() => Value.GetEnumerator();
-
-		public void Push(StackValue value) => Value.Add(value);
-		public StackValue Peek() => Value.Last();
-		public StackValue Pop() {
-			var top = Value.Last();
-			Value = Value.SkipLast(1).ToList();
-			return top;
+		public void PopScope() {
+			Scopes.RemoveAt(Scopes.Count - 1);
+			Values = Scopes.SelectMany(x => x).ToDictionary(x => x.Key, x => x.Value);
 		}
 
-		public override string ToString() => $"[ {string.Join(" ", Value.Select(x => x.ToString()))} ]";
+		public bool TryGetValue(string name, out Ir value) => Values.TryGetValue(name, out value);
 	}
 
-	public class StackBlock : StackList {
-		public override string ToString() => $"{{ {string.Join(" ", Value.Select(x => x.ToString()))} }}";
+	public class CompilerException : Exception {
+		public CompilerException(string message) : base(message) {}
 	}
 	
 	public class Compiler {
 		public Tokenizer Tokenizer;
 		readonly List<Func<Compiler, Token, bool>> StringHandlers = new List<Func<Compiler, Token, bool>>();
 		readonly List<Func<Compiler, string, bool>> WordHandlers = new List<Func<Compiler, string, bool>>();
-		readonly Dictionary<string, Func<Compiler, string, Token, bool>> PrefixHandlers = new Dictionary<string, Func<Compiler, string, Token, bool>>();
 
-		public StackList Stack = new StackList();
-		public readonly Stack<StackList> StackStack = new Stack<StackList>();
+		readonly List<(string Prefix, Func<Compiler, string, Token, bool> Handler)> PrefixHandlers =
+			new List<(string Prefix, Func<Compiler, string, Token, bool> Handler)>();
+
+		public Stack<Ir> Stack = new Stack<Ir>();
+		public readonly Stack<Stack<Ir>> StackStack = new Stack<Stack<Ir>>();
+
+		public MacroLocals MacroLocals = new MacroLocals();
 		
-		public Compiler() {
-			
-		}
+		public readonly Dictionary<string, Ir> Macros = new Dictionary<string, Ir>();
+		
+		public Dictionary<string, Type> Locals = new Dictionary<string, Type>();
 
+		Token CurrentToken;
+		
 		public void Add(DaeforthModule module) {
 			StringHandlers.AddRange(module.StringHandlers);
 			WordHandlers.AddRange(module.WordHandlers);
-			foreach(var (k, v) in module.PrefixHandlers)
-				PrefixHandlers[k] = v;
+			PrefixHandlers.AddRange(module.PrefixHandlers);
 		}
 
 		public void Compile(string filename, string source) {
 			Tokenizer = new Tokenizer(filename, source);
-			Tokenizer.Prefixes.AddRange(PrefixHandlers.Keys);
+			Tokenizer.Prefixes.AddRange(PrefixHandlers.Select(x => x.Prefix));
 
-			foreach(var token in Tokenizer) {
-				var pfxHandled = false;
+			foreach(var _token in Tokenizer) {
+				var token = CurrentToken = _token;
 				if(token.Prefixes.Count != 0) {
-					var ptoken = token.PopPrefix();
-					foreach(var pfx in token.Prefixes) {
-						if(!PrefixHandlers.ContainsKey(pfx) || !PrefixHandlers[pfx](this, pfx, ptoken)) continue;
-						pfxHandled = true;
-						break;
-					}
-					if(pfxHandled)
+					var pftoken = token.PopPrefix();
+					var pfx = token.Prefixes.First();
+					var ph = PrefixHandlers.FirstOrDefault(x => x.Prefix == pfx);
+					if(ph.Handler != null && ph.Handler(this, pfx, pftoken))
 						continue;
-					Debug.Assert(token.Prefixes.Count == 0); // We shouldn't have any unhandled prefixes here.
+					token = token.BakePrefixes(token.Prefixes);
 				}
 
-				if(token.Type == TokenType.Word) {
-					var wordHandled = false;
-					foreach(var wh in WordHandlers) {
-						if(!wh(this, token.Value)) continue;
-						wordHandled = true;
-						break;
+				try {
+					switch(token.Type) {
+						case TokenType.Word: {
+							var wordHandled = false;
+
+							if(Macros.TryGetValue(token.Value, out var macroBody)) {
+								InjectToken(macroBody);
+								InjectToken("call");
+								wordHandled = true;
+							}
+							
+							if(!wordHandled && MacroLocals.TryGetValue(token.Value, out var value)) {
+								Push(value);
+								wordHandled = true;
+							}
+
+							if(!wordHandled)
+								foreach(var wh in WordHandlers) {
+									if(!wh(this, token.Value)) continue;
+									wordHandled = true;
+									break;
+								}
+
+							if(!wordHandled)
+								throw new CompilerException($"Unhandled word: {token}");
+							break;
+						}
+						case TokenType.Value:
+							Push(((ValueToken) token).Value);
+							break;
+						case TokenType.String: {
+							var stringHandled = false;
+							foreach(var sh in StringHandlers) {
+								if(!sh(this, token)) continue;
+								stringHandled = true;
+								break;
+							}
+
+							if(!stringHandled)
+								throw new CompilerException($"Unhandled string: {token}");
+							break;
+						}
 					}
-					if(!wordHandled)
-						throw new Exception($"Unhandled word: {token}");
-				} else {
-					var stringHandled = false;
-					foreach(var sh in StringHandlers) {
-						if(!sh(this, token)) continue;
-						stringHandled = true;
-						break;
-					}
-					if(!stringHandled)
-						throw new Exception($"Unhandled string: {token}");
+				} catch(CompilerException ce) {
+					Console.Error.WriteLine(ce);
+					Console.Error.WriteLine($"Exception in token {token}");
+					DumpStack();
+					Environment.Exit(1);
 				}
 			}
 			
 			DumpStack();
 		}
 
+		public void Warn(string message) =>
+			Console.Error.WriteLine($"Warning near {CurrentToken}: {message}");
+
 		public void DumpStack() {
-			Console.WriteLine($"~Stack~");
+			Console.WriteLine("~Stack~");
 			foreach(var elem in Stack)
-				Console.WriteLine(elem);
+				elem.Print();
 		}
 
 		public void PushStack() {
 			StackStack.Push(Stack);
-			Stack = new StackList();
+			Stack = new Stack<Ir>();
 		}
 
-		public StackList PopStack() {
+		public Stack<Ir> PopStack() {
 			var cur = Stack;
 			Stack = StackStack.Pop();
 			return cur;
 		}
 
-		public void PushValue<T>(T value) where T : struct => Stack.Push((StackBoxed<T>) value);
-		public void Push(params StackValue[] value) {
+		public void PushValue<T>(T value) => Stack.Push(value.Box());
+		public void Push(params Ir[] value) {
 			foreach(var val in value)
 				Stack.Push(val);
 		}
-		public T Pop<T>() where T : StackValue {
-			Debug.Assert(Stack.Count != 0);
+		public T Pop<T>() where T : Ir {
+			if(Stack.Count == 0) throw new CompilerException("Stack underflow");
 			var val = Stack.Pop();
-			Debug.Assert(val is T);
-			return (T) val;
+			if(!(val is T tval)) throw new CompilerException($"Expected {typeof(T).Name} on stack, got {val.GetType().Name}");
+			return tval;
 		}
-		public StackValue Pop() => Pop<StackValue>();
-		public T TryPop<T>() where T : StackValue {
+		public Ir Pop() => Pop<Ir>();
+		public T TryPop<T>() where T : Ir {
 			if(Stack.Count != 0 && Stack.Peek() is T) return (T) Stack.Pop();
 			return null;
 		}
 		
-		public (T1, T2) Pop<T1, T2>() where T1 : StackValue where T2 : StackValue {
+		public (T1, T2) Pop<T1, T2>() where T1 : Ir where T2 : Ir {
 			var _2 = Pop<T2>();
 			var _1 = Pop<T1>();
 			return (_1, _2);
 		}
-		public (T1, T2, T3) Pop<T1, T2, T3>() where T1 : StackValue where T2 : StackValue where T3 : StackValue {
+		public (T1, T2, T3) Pop<T1, T2, T3>() where T1 : Ir where T2 : Ir where T3 : Ir {
 			var _3 = Pop<T3>();
 			var _2 = Pop<T2>();
 			var _1 = Pop<T1>();
 			return (_1, _2, _3);
 		}
-		public (T1, T2, T3, T4) Pop<T1, T2, T3, T4>() where T1 : StackValue where T2 : StackValue where T3 : StackValue where T4 : StackValue {
+		public (T1, T2, T3, T4) Pop<T1, T2, T3, T4>() where T1 : Ir where T2 : Ir where T3 : Ir where T4 : Ir {
 			var _4 = Pop<T4>();
 			var _3 = Pop<T3>();
 			var _2 = Pop<T2>();
@@ -159,7 +191,14 @@ namespace DaeForth {
 		}
 
 		public void InjectToken(Token token) => Tokenizer.Injected.Enqueue(token);
+		public void InjectToken(Ir value) => InjectToken(new ValueToken(value));
 		public void InjectToken(string token) => InjectToken(new Token(Location.Generated, Location.Generated, TokenType.Word, null, token));
+
+		public Token ConsumeToken() {
+			var enumerator = Tokenizer.GetEnumerator();
+			enumerator.MoveNext();
+			return enumerator.Current;
+		}
 
 		public void Output(Stream ostream) {
 			

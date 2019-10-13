@@ -7,7 +7,8 @@ namespace DaeForth {
 
 		public readonly List<Func<Compiler, Token, bool>> StringHandlers = new List<Func<Compiler, Token, bool>>();
 		public readonly List<Func<Compiler, string, bool>> WordHandlers = new List<Func<Compiler, string, bool>>();
-		public readonly Dictionary<string, Func<Compiler, string, Token, bool>> PrefixHandlers = new Dictionary<string, Func<Compiler, string, Token, bool>>();
+		public readonly List<(string Prefix, Func<Compiler, string, Token, bool> Handler)> PrefixHandlers =
+			new List<(string Prefix, Func<Compiler, string, Token, bool> Handler)>();
 
 		protected void AddStringHandler(Func<Compiler, Token, bool> func) =>
 			StringHandlers.Add(func);
@@ -26,12 +27,12 @@ namespace DaeForth {
 			});
 
 		protected void AddPrefixHandler(string pfx, Func<Compiler, Token, bool> func) =>
-			PrefixHandlers[pfx] = (compiler, ppfx, token) => func(compiler, token);
+			PrefixHandlers.Add((pfx, (compiler, ppfx, token) => func(compiler, token)));
 
 		protected void AddPrefixHandler(string pfx, Action<Compiler, Token> func) =>
-			PrefixHandlers[pfx] = (compiler, ppfx, token) => {
+			PrefixHandlers.Add((pfx, (compiler, ppfx, token) => {
 				func(compiler, token);
 				return true;
-			};
+			}));
 	}
 }

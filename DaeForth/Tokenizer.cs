@@ -17,10 +17,11 @@ namespace DaeForth {
 
 	public enum TokenType {
 		String, 
-		Word
+		Word, 
+		Value
 	}
 	
-	public struct Token {
+	public class Token {
 		public readonly Location StartLocation, EndLocation;
 		public readonly TokenType Type;
 		public readonly List<string> Prefixes;
@@ -37,8 +38,23 @@ namespace DaeForth {
 
 		public Token PopPrefix() =>
 			new Token(StartLocation, EndLocation, Type, Prefixes.Skip(1).ToList(), Value, RawValue);
+		
+		public Token BakePrefixes(List<string> prefixes) =>
+			new Token(StartLocation, EndLocation, Type, null, string.Join("", prefixes) + Value, RawValue);
+		
+		public static Token Generate(string token) =>
+			new Token(Location.Generated, Location.Generated, TokenType.Word, null, token, token);
 
 		public override string ToString() => $"'{RawValue}'{(Prefixes.Count != 0 ? $" [ {string.Join(" ", Prefixes)} ]" : "")} @ {StartLocation} - {EndLocation}";
+	}
+
+	public class ValueToken : Token {
+		public new readonly Ir Value;
+
+		public ValueToken(Ir value) : base(Location.Generated, Location.Generated, TokenType.Value, null, null) =>
+			Value = value;
+
+		public override string ToString() => $"ValueToken {Value}";
 	}
 
 	public class Tokenizer : IEnumerable<Token> {
@@ -47,7 +63,8 @@ namespace DaeForth {
 		readonly List<(int Offset, int Line)> LineStarts;
 		public readonly List<string> Prefixes = new List<string>();
 
-		public readonly Queue<Token> Injected = new Queue<Token>();
+		public Queue<Token> Injected = new Queue<Token>();
+		public readonly Stack<Queue<Token>> AllInjected = new Stack<Queue<Token>>();
 
 		readonly IEnumerator<Token> Enumerator;
 		
@@ -73,12 +90,27 @@ namespace DaeForth {
 		IEnumerator<Token> GetCoreEnumerator() {
 			bool IsWhitespace(char ch) =>
 				ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
+
+			void HandleInjected() {
+				if(Injected.Count == 0) return;
+				AllInjected.Push(Injected);
+				Injected = new Queue<Token>();
+			}
 			
 			var i = 0;
 			var ps = 0;
 			while(i < Code.Length) {
-				while(Injected.Count != 0)
-					yield return Injected.Dequeue();
+				while(true) {
+					if(AllInjected.Count == 0) break;
+					var iq = AllInjected.Peek();
+					if(iq.Count == 0) {
+						AllInjected.Pop();
+						continue;
+					}
+					yield return iq.Dequeue();
+					HandleInjected();
+				}
+
 				if(IsWhitespace(Code[i])) {
 					i++;
 					continue;
@@ -108,19 +140,29 @@ namespace DaeForth {
 					i -= prefixes.Last().Length;
 					prefixes = prefixes.Take(prefixes.Count - 1).ToList();
 				}
-				prefixes.Reverse();
 
 				if(Code[i] == '"') {
-					
+					throw new NotImplementedException();
 				} else {
 					var tv = "";
 					while(i < Code.Length && !IsWhitespace(Code[i]))
 						tv += Code[i++];
-					yield return new Token(start, GetLocation(i - 1), TokenType.Word, prefixes, tv);
+					yield return new Token(start, GetLocation(i - 1), TokenType.Word, prefixes, tv, string.Join("", prefixes) + tv);
 				}
+				
+				HandleInjected();
 			}
-			while(Injected.Count != 0)
-				yield return Injected.Dequeue();
+			
+			while(true) {
+				if(AllInjected.Count == 0) break;
+				var iq = AllInjected.Peek();
+				if(iq.Count == 0) {
+					AllInjected.Pop();
+					continue;
+				}
+				yield return iq.Dequeue();
+				HandleInjected();
+			}
 		}
 
 		public IEnumerator<Token> GetEnumerator() => Enumerator;

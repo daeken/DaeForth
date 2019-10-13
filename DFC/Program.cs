@@ -1,4 +1,5 @@
-﻿using DaeForth;
+﻿using System.IO;
+using DaeForth;
 using static System.Console;
 
 namespace DFC {
@@ -6,8 +7,9 @@ namespace DFC {
 		static void Main(string[] args) {
 			var compiler = new Compiler();
 			compiler.Add(new CommonModule());
-			compiler.Add(new ClrModule());
-			compiler.Compile("test.dfr", "5 (( some comment here (( and some (( nesting! )) )) )) [ 7 8 9 [ 1 2 3 swap ] swap ] 6 &swap dup call");
+			compiler.Add(new ShaderModule());
+			compiler.Add(new BinaryOpModule());
+			compiler.Compile("test.dfr", File.ReadAllText("test.dfr"));
 		}
 	}
 }

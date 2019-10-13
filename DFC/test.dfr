@@ -1,0 +1,43 @@
+(( some comment here (( and some (( nesting! )) )) ))
+
+(( These are exactly equivalent (and will generate a warning about redefinition) ))
+{ == assert } `assert-equal def-macro
+:m assert-equal == assert ;
+
+:m v== == flatten-deep \== ;
+:m assert-all-equal v== assert ;
+
+{ (| a b |) a b != assert } `assert-not-equal def-macro
+
+1 2 assert-not-equal
+
+[ 7 8 #9 [ 1 2 3 ] ] 1 + [ 8 9 10 [ 2 3 4 ] ] == flatten \== assert
+[ 7 8 #9 [ 1 2 [ 3 4 5 ] ] ] 1 + [ 8 9 10 [ 2 3 [ 4 5 6 ] ] ] == flatten-deep \== assert
+
+[ 4 5 6 7 ] \+ 22 assert-equal
+[ 1 3 5 ] \/ 1 3 / 5 / assert-equal
+[ 0 1 2 ] /{ 10 + } [ 10 11 12 ] assert-all-equal
+[ 0 1 2 ] 10 + [ 10 11 12 ] assert-all-equal
+10 [ 0 1 2 ] + [ 10 11 12 ] assert-all-equal
+10 [ 0 1 2 ] - [ 10 9 8 ] assert-all-equal
+[ 0 1 2 ] 10 - [ -10 -9 -8 ] assert-all-equal
+
+[ [ 0 1 2 ] [ 3 4 5 ] ] \+ [ 3 5 7 ] assert-all-equal
+[ 0 1 0 0 0 ] 0 == [ true false true true true ] assert-all-equal
+
+[ [ 1 2 3 ] [ 4 5 6 ] ] /\+ \+ 21 assert-equal
+
+#123 =>foo
+#120 3 / #83 + foo assert-equal
+
+:m add-five 5 _ + ;
+10 add-five 15 assert-equal
+
+:m mul-add (| a b c |) a b * c + ;
+5 10 3 mul-add 53 assert-equal
+
+:m square _ _ * ;
+5 square 25 assert-equal
+
+:m dup-square !* ;
+5 dup-square 25 assert-equal
