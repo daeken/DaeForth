@@ -170,6 +170,12 @@ namespace DaeForth {
 				compiler.Push(typeof(VaryingType<>).MakeGenericType(type).Box());
 			});
 
+			AddWordHandler("output-variable", compiler => {
+				var type = compiler.TryPop<Ir.ConstValue<Type>>();
+				if(type == null) throw new CompilerException("Output must be applied to a type");
+				compiler.Push(typeof(OutputType<>).MakeGenericType(type).Box());
+			});
+
 			AddWordHandler("global", compiler => {
 				var type = compiler.TryPop<Ir.ConstValue<Type>>();
 				if(type == null) throw new CompilerException("Global must be applied to a type");
@@ -216,6 +222,15 @@ namespace DaeForth {
 				compiler.InjectToken(tok.Value);
 				compiler.InjectToken("~~pop-macro-scope");
 				return true;
+			});
+			
+			AddWordHandler("cif", compiler => {
+				var cond = compiler.TryPop<Ir.ConstValue<bool>>();
+				if(cond == null) throw new CompilerException("Conditional compilation requires constant expression");
+				var else_ = compiler.Pop();
+				var if_ = compiler.Pop();
+				compiler.InjectToken(cond.Value ? if_ : else_);
+				compiler.InjectToken("call");
 			});
 			
 			AddWordHandler("def-macro", compiler => {

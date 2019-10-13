@@ -62,9 +62,18 @@ test-vec-var 2 * =test-vec-var-x2
 
 #4 upto =test-range
 
-@int uniform =test-uniform-int
+(( @int uniform =test-uniform-int
 @vec4 uniform =test-uniform-vec4
 @int varying =test-varying-int
 @int global =test-global-int
 
-test-global-int #5 + =test-global-int
+test-global-int #5 + =test-global-int ))
+
+{
+    @vec4 output-variable =output-color
+    :m ->fragColor =output-color ;
+} {
+    :m ->fragColor =$gl_FragColor ;
+} false cif
+
+[ 1 2 3 4 ] ->fragColor

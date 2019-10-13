@@ -43,6 +43,7 @@ namespace DaeForth {
 	
 	class UniformType<T> { }
 	class VaryingType<T> { }
+	class OutputType<T> { }
 	class GlobalType<T> { }
 
 	public class WordContext {
@@ -185,6 +186,7 @@ namespace DaeForth {
 				string qualifier;
 				if(gtd == typeof(UniformType<>)) qualifier = "uniform";
 				else if(gtd == typeof(VaryingType<>)) qualifier = "varying";
+				else if(gtd == typeof(OutputType<>)) qualifier = "out";
 				else if(gtd == typeof(GlobalType<>)) qualifier = null;
 				else throw new CompilerException($"Unknown generic type for variable assignment {type}");
 				type = type.GetGenericArguments()[0];
@@ -193,16 +195,21 @@ namespace DaeForth {
 				return;
 			}
 
-			if(Globals.TryGetValue(name, out var gknownType)) {
-				if(gknownType.Type != type)
-					throw new CompilerException(
-						$"Global variable '{name}' has type {gknownType.Type.Name} but a {type.Name} ({value}) is being assigned");
-			} else if(CurrentWord.Locals.TryGetValue(name, out var knownType)) {
-				if(knownType != type)
-					throw new CompilerException(
-						$"Variable '{name}' has type {knownType.Name} but a {type.Name} ({value}) is being assigned");
-			} else
-				CurrentWord.Locals[name] = type;
+			if(name.StartsWith("$")) {
+				name = name.Substring(1);
+			} else {
+				if(Globals.TryGetValue(name, out var gknownType)) {
+					if(gknownType.Type != type)
+						throw new CompilerException(
+							$"Global variable '{name}' has type {gknownType.Type.Name} but a {type.Name} ({value}) is being assigned");
+				} else if(CurrentWord.Locals.TryGetValue(name, out var knownType)) {
+					if(knownType != type)
+						throw new CompilerException(
+							$"Variable '{name}' has type {knownType.Name} but a {type.Name} ({value}) is being assigned");
+				} else
+					CurrentWord.Locals[name] = type;
+			}
+
 			AddStmt(new Ir.Assignment {
 				Identifier = new Ir.Identifier(name), Type = type, 
 				Value = value.Type == type ? value : null
