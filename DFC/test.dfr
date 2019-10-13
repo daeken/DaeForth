@@ -41,3 +41,6 @@
 
 :m dup-square !* ;
 5 dup-square 25 assert-equal
+
+{ #123450 #10 / } =>printer
+*printer #12345 assert-equal

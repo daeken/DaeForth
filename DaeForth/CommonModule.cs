@@ -134,6 +134,11 @@ namespace DaeForth {
 				return true;
 			});
 			
+			AddPrefixHandler("*", (compiler, token) => {
+				compiler.InjectToken(token);
+				compiler.InjectToken("call");
+			});
+
 			AddWordHandler("((", compiler => {
 				var depth = 0;
 				foreach(var elem in compiler.Tokenizer) {
