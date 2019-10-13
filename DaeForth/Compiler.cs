@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using PrettyPrinter;
 
 namespace DaeForth {
@@ -39,6 +40,14 @@ namespace DaeForth {
 	public class CompilerException : Exception {
 		public CompilerException(string message) : base(message) {}
 	}
+
+	public class WordContext {
+		public readonly string Name;
+		public Dictionary<string, Type> Locals = new Dictionary<string, Type>();
+		public readonly List<Ir> Body = new List<Ir>();
+
+		public WordContext(string name) => Name = name;
+	}
 	
 	public class Compiler {
 		public Tokenizer Tokenizer;
@@ -55,8 +64,9 @@ namespace DaeForth {
 		
 		public readonly Dictionary<string, Ir> Macros = new Dictionary<string, Ir>();
 		
-		public Dictionary<string, Type> Locals = new Dictionary<string, Type>();
-
+		public readonly WordContext MainContext = new WordContext("main");
+		public WordContext CurrentWord;
+		
 		Token CurrentToken;
 		
 		public void Add(DaeforthModule module) {
@@ -69,18 +79,20 @@ namespace DaeForth {
 			Tokenizer = new Tokenizer(filename, source);
 			Tokenizer.Prefixes.AddRange(PrefixHandlers.Select(x => x.Prefix));
 
+			CurrentWord = MainContext;
+
 			foreach(var _token in Tokenizer) {
 				var token = CurrentToken = _token;
-				if(token.Prefixes.Count != 0) {
-					var pftoken = token.PopPrefix();
-					var pfx = token.Prefixes.First();
-					var ph = PrefixHandlers.FirstOrDefault(x => x.Prefix == pfx);
-					if(ph.Handler != null && ph.Handler(this, pfx, pftoken))
-						continue;
-					token = token.BakePrefixes(token.Prefixes);
-				}
-
 				try {
+					if(token.Prefixes.Count != 0) {
+						var pftoken = token.PopPrefix();
+						var pfx = token.Prefixes.First();
+						var ph = PrefixHandlers.FirstOrDefault(x => x.Prefix == pfx);
+						if(ph.Handler != null && ph.Handler(this, pfx, pftoken))
+							continue;
+						token = token.BakePrefixes(token.Prefixes);
+					}
+					
 					switch(token.Type) {
 						case TokenType.Word: {
 							var wordHandled = false;
@@ -93,6 +105,11 @@ namespace DaeForth {
 							
 							if(!wordHandled && MacroLocals.TryGetValue(token.Value, out var value)) {
 								Push(value);
+								wordHandled = true;
+							}
+
+							if(!wordHandled && CurrentWord.Locals.TryGetValue(token.Value, out var type)) {
+								Push(new Ir.Identifier(token.Value) { Type = type });
 								wordHandled = true;
 							}
 
@@ -131,7 +148,51 @@ namespace DaeForth {
 				}
 			}
 			
+			MainContext.Print();
+			
 			DumpStack();
+		}
+
+		public Type TypeFromString(string type) =>
+			type switch {
+				"int" => typeof(int), 
+				_ => throw new CompilerException($"Unknown type '{type}'")
+			};
+
+		public void AddStmt(Ir stmt) => CurrentWord.Body.Add(stmt);
+
+		public void AssignVariable(string name, Ir value) {
+			value = CanonicalizeValue(value);
+			var type = value is Ir.IConstValue icv && icv.Value is Type typespec ? typespec : value.Type;
+			if(CurrentWord.Locals.TryGetValue(name, out var knownType)) {
+				if(knownType != type)
+					throw new CompilerException(
+						$"Variable '{name}' has type {knownType.Name} but a {type.Name} ({value}) is being assigned");
+			} else
+				CurrentWord.Locals[name] = type;
+			AddStmt(new Ir.Assignment {
+				Identifier = new Ir.Identifier(name), Type = type, 
+				Value = value.Type == type ? value : null
+			});
+		}
+
+		public Ir CanonicalizeValue(Ir value) {
+			if(!(value is Ir.List list)) return value;
+
+			switch(list.Count) {
+				case 2:
+					list.Type = typeof(Vector2);
+					break;
+				case 3:
+					list.Type = typeof(Vector3);
+					break;
+				case 4:
+					list.Type = typeof(Vector4);
+					break;
+				default:
+					throw new CompilerException("Only arrays of size 2-4 can be canonicalized");
+			}
+			return list;
 		}
 
 		public void Warn(string message) =>
@@ -200,8 +261,6 @@ namespace DaeForth {
 			return enumerator.Current;
 		}
 
-		public void Output(Stream ostream) {
-			
-		}
+		public string GenerateCode(Backend backend) => backend.GenerateCode(new[] { MainContext });
 	}
 }

@@ -1,6 +1,6 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using DaeForth;
-using static System.Console;
 
 namespace DFC {
 	class Program {
@@ -10,6 +10,7 @@ namespace DFC {
 			compiler.Add(new ShaderModule());
 			compiler.Add(new BinaryOpModule());
 			compiler.Compile("test.dfr", File.ReadAllText("test.dfr"));
+			Console.WriteLine(compiler.GenerateCode(new GlslBackend()));
 		}
 	}
 }

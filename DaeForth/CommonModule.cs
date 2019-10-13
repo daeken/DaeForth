@@ -136,7 +136,11 @@ namespace DaeForth {
 			AddPrefixHandler("=[", (compiler, token) => throw new NotImplementedException());
 			AddPrefixHandler("=", (compiler, token) => {
 				if(token.Value == "=") return false; // ==
-				throw new NotImplementedException();
+
+				var name = token.Value;
+				var value = compiler.Pop();
+				compiler.AssignVariable(name, value);
+				return true;
 			});
 			
 			AddPrefixHandler("!", (compiler, token) => {
@@ -150,6 +154,9 @@ namespace DaeForth {
 				compiler.InjectToken(token);
 				compiler.InjectToken("call");
 			});
+
+			AddPrefixHandler("@",
+				(compiler, token) => compiler.InjectToken(compiler.TypeFromString(token.Value).Box()));
 
 			AddWordHandler("((", compiler => {
 				var depth = 0;

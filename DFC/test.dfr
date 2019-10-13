@@ -1,7 +1,7 @@
 (( some comment here (( and some (( nesting! )) )) ))
 
 (( These are exactly equivalent (and will generate a warning about redefinition) ))
-{ == assert } `assert-equal def-macro
+(( { == assert } `assert-equal def-macro ))
 :m assert-equal == assert ;
 
 :m v== == flatten-deep \== ;
@@ -48,3 +48,10 @@
 true ~{ 123 } 123 assert-equal
 true ~123 123 assert-equal
 123 false ~456 123 assert-equal 
+
+@int =test-var
+#5 =test-var
+
+test-var #6 + =test-var
+
+[ 1 2 3 4 ] =test-vec-var
