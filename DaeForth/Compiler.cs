@@ -229,22 +229,33 @@ namespace DaeForth {
 		}
 
 		public Ir CanonicalizeValue(Ir value) {
+			int Size(Ir sval) {
+				if(sval is Ir.List slist)
+					return slist.Select(Size).Sum();
+				var t = sval.Type;
+				if(t == typeof(Vector2)) return 2;
+				if(t == typeof(Vector3)) return 3;
+				if(t == typeof(Vector4)) return 4;
+				return 1;
+			}
+			
 			if(!(value is Ir.List list)) return value;
-
-			switch(list.Count) {
+			
+			var nlist = new Ir.List(list.Select(CanonicalizeValue));
+			switch(Size(nlist)) {
 				case 2:
-					list.Type = typeof(Vector2);
+					nlist.Type = typeof(Vector2);
 					break;
 				case 3:
-					list.Type = typeof(Vector3);
+					nlist.Type = typeof(Vector3);
 					break;
 				case 4:
-					list.Type = typeof(Vector4);
+					nlist.Type = typeof(Vector4);
 					break;
 				default:
 					throw new CompilerException("Only arrays of size 2-4 can be canonicalized");
 			}
-			return list;
+			return nlist;
 		}
 
 		public void Warn(string message) =>

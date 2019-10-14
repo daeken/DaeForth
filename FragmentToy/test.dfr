@@ -1,7 +1,6 @@
 @vec2 varying =position
+@vec2 uniform =resolution
 
 :m ->fragColor =$gl_FragColor ;
 
-[ 0 1 0 1 ] ->fragColor
-
-(( [ position 0 1 ] ->fragColor ))
+[ position 1 1 ] ->fragColor

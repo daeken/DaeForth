@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FragmentToy</title>
+    <script src="//code.jquery.com/jquery-3.4.1.min.js"></script>
+    <script src="main.js"></script>
+    <style type="text/css" media="screen">
+        #editor {
+            width: 800px;
+            height: 600px;
+        }
+        #log {
+            width: 800px;
+            height: 300px;
+        }
+        #canvas {
+            width: 800px;
+            height: 600px;
+        }
+        span {
+            display: inline-block;
+            vertical-align: top;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <span>
+            <canvas id="canvas"></canvas>
+        </span>
+        <span>
+            <div>Cursor at: <span id="position"></span></div>
+            <div id="editor"></div>
+            <div id="log"></div>
+        </span>
+    </div>
+    <script src="//pagecdn.io/lib/ace/1.4.6/ace.js"></script>
+</body>
+</html>
