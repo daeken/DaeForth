@@ -421,7 +421,7 @@ namespace DaeForth {
 			AddWordHandler("false", compiler => compiler.PushValue(false));
 			AddWordHandler("true", compiler => compiler.PushValue(true));
 			
-			AddWordHandler("print", compiler => compiler.Pop().Print());
+			AddWordHandler("print", compiler => compiler.ErrorWriter.WriteLine(compiler.Pop().ToPrettyString()));
 			AddWordHandler("assert", compiler => {
 				var cond = compiler.TryPop<Ir.ConstValue<bool>>();
 				if(cond == null) throw new CompilerException("Assertion on non-const or non-bool value");

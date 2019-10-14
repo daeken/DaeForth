@@ -32,7 +32,7 @@ namespace DaeForth {
 				Ir.ConstValue<int> icv => icv.Value.ToString(), 
 				Ir.ConstValue<float> fcv => FormatFloat(fcv), 
 				Ir.ConstValue<bool> bcv => bcv ? "true" : "false", 
-				Ir.List list => $"vec{list.Count}({string.Join(", ", list.Select(x => Transform(x.CastTo(typeof(float)))))}", 
+				Ir.List list => $"vec{list.Count}({string.Join(", ", list.Select(x => Transform(x.CastTo(typeof(float)))))})", 
 				Ir.Identifier id => ToName(id.Name), 
 				Ir.If _if when _if.B is Ir.List ifList && ifList.Count == 0 => $"if({Transform(_if.Cond)}) {{\n{string.Join('\n', ((Ir.List) _if.A).Select(Transform).Where(x => x != null)).Indent()}\n}}", 
 				Ir.If _if => $"if({Transform(_if.Cond)}) {{\n{string.Join('\n', ((Ir.List) _if.A).Select(Transform).Where(x => x != null)).Indent()}\n}} else {{\n{string.Join('\n', ((Ir.List) _if.B).Select(Transform).Where(x => x != null)).Indent()}\n}}", 

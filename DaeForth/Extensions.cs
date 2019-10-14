@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace DaeForth {
 	public static class Extensions {
-		public static Ir Box<T>(this T value) =>
+		internal static Ir Box<T>(this T value) =>
 			(Ir) Activator.CreateInstance(typeof(Ir.ConstValue<>).MakeGenericType(value.GetType()), value);
 		
 		internal static string Indent(this string code, int level = 1) =>

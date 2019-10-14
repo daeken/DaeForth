@@ -1,0 +1,7 @@
+@vec2 varying =position
+
+:m ->fragColor =$gl_FragColor ;
+
+[ 0 1 0 1 ] ->fragColor
+
+(( [ position 0 1 ] ->fragColor ))

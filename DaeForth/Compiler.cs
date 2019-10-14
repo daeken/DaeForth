@@ -75,8 +75,19 @@ namespace DaeForth {
 		
 		public readonly WordContext MainContext = new WordContext("main");
 		public WordContext CurrentWord;
+
+		public bool Completed;
 		
 		Token CurrentToken;
+
+		public TextWriter ErrorWriter = Console.Error;
+
+		public Compiler() {
+			Add(new CommonModule());
+			Add(new ShaderModule());
+			Add(new BinaryOpModule());
+			Add(new UnaryOpModule());
+		}
 		
 		public void Add(DaeforthModule module) {
 			StringHandlers.AddRange(module.StringHandlers);
@@ -90,9 +101,9 @@ namespace DaeForth {
 
 			CurrentWord = MainContext;
 
-			foreach(var _token in Tokenizer) {
-				var token = CurrentToken = _token;
-				try {
+			try {
+				foreach(var _token in Tokenizer) {
+					var token = CurrentToken = _token;
 					if(token.Prefixes.Count != 0) {
 						var pftoken = token.PopPrefix();
 						var pfx = token.Prefixes.First();
@@ -154,17 +165,17 @@ namespace DaeForth {
 							break;
 						}
 					}
-				} catch(CompilerException ce) {
-					Console.Error.WriteLine(ce);
-					Console.Error.WriteLine($"Exception in token {token}");
-					DumpStack();
-					Environment.Exit(1);
 				}
+				
+				if(MainContext != CurrentWord) throw new CompilerException("Ended in word other than main");
+				if(Stack.Count != 0) throw new CompilerException("Main ended with values on the stack");
+
+				Completed = true;
+			} catch(CompilerException ce) {
+				ErrorWriter.WriteLine(ce);
+				ErrorWriter.WriteLine($"Exception in token {CurrentToken}");
+				DumpStack();
 			}
-			
-			MainContext.Print();
-			
-			DumpStack();
 		}
 
 		public Type TypeFromString(string type) =>
@@ -240,9 +251,10 @@ namespace DaeForth {
 			Console.Error.WriteLine($"Warning near {CurrentToken}: {message}");
 
 		public void DumpStack() {
-			Console.WriteLine("~Stack~");
+			ErrorWriter.WriteLine("~Stack~");
 			foreach(var elem in Stack)
-				elem.Print();
+				ErrorWriter.WriteLine(elem.ToPrettyString());
+			ErrorWriter.WriteLine("~End of Stack~");
 		}
 
 		public void PushStack() {

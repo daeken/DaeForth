@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DaeForth", "DaeForth\DaeFor
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DFC", "DFC\DFC.csproj", "{FBB7E776-CBF8-400D-8FB3-A40C32195210}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FragmentToy", "FragmentToy\FragmentToy.csproj", "{CBDAE432-4FA6-49E3-BD68-6873DE95802F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{FBB7E776-CBF8-400D-8FB3-A40C32195210}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FBB7E776-CBF8-400D-8FB3-A40C32195210}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FBB7E776-CBF8-400D-8FB3-A40C32195210}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CBDAE432-4FA6-49E3-BD68-6873DE95802F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBDAE432-4FA6-49E3-BD68-6873DE95802F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBDAE432-4FA6-49E3-BD68-6873DE95802F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBDAE432-4FA6-49E3-BD68-6873DE95802F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
