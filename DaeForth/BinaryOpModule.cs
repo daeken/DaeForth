@@ -58,8 +58,8 @@ namespace DaeForth {
 						compiler.InjectToken("]");
 					}
 				} else {
-					a = compiler.CanonicalizeValue(a);
-					b = compiler.CanonicalizeValue(b);
+					a = Compiler.CanonicalizeValue(a);
+					b = Compiler.CanonicalizeValue(b);
 					compiler.Push(new Ir.BinaryOperation {
 						Type = op.Value.Func(Activator.CreateInstance(a.Type), Activator.CreateInstance(b.Type))
 							.GetType(),

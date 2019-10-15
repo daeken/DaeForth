@@ -91,8 +91,7 @@ namespace DaeForth {
 		}
 
 		public class Block : Ir {
-			public string Name; // Optional
-			public IList<Ir> Body;
+			public List Body;
 		}
 
 		public class If : Ir {
@@ -109,6 +108,11 @@ namespace DaeForth {
 
 		public class Call : Ir {
 			public Ir Functor;
+			public List Arguments;
+		}
+
+		public class CallWord : Ir {
+			public (string Name, Type Return, Type[] Arguments) Word;
 			public List Arguments;
 		}
 

@@ -8,20 +8,33 @@ using PrettyPrinter;
 namespace DaeForth {
 	public class GlslBackend : Backend {
 		public override string GenerateCode(IDictionary<string, (string Qualifier, Type Type)> globals,
-			IEnumerable<WordContext> words) =>
+			Dictionary<(string Name, Type Return, Type[] Arguments), WordContext> words) =>
 			(globals.Count == 0
 				? ""
 				: string.Join('\n',
 					  globals.Select(x =>
 						  $"{x.Value.Qualifier ?? ""}{(x.Value.Qualifier != null ? " " : "")}{ToType(x.Value.Type)} {ToName(x.Key)};")) +
 				  "\n\n") +
+			string.Join("\n", words.Select(word =>
+				$"{(word.Key.Return == null ? "void" : ToType(word.Key.Return))} {ToWordName(word.Key)}(" +
+				string.Join(", ", word.Key.Arguments.Select((x, i) => $"{ToType(x)} arg_{i}").Reverse()) +
+				");"
+			)) + "\n\n" +
 			string.Join("\n\n", words.Select(word => {
 				var body = "";
-				if(word.Locals.Count != 0)
-					body += string.Join('\n', word.Locals.Select(x => $"{ToType(x.Value)} {ToName(x.Key)};")) + "\n";
-				body += string.Join('\n', word.Body.Select(Transform).Where(x => x != null));
-				return $"void {word.Name}() {{\n{body.Indent()}\n}}";
+				if(word.Value.Locals.Count != 0)
+					body += string.Join('\n', word.Value.Locals.Select(x => $"{ToType(x.Value)} {ToName(x.Key)};")) +
+					        "\n";
+				body += string.Join('\n', word.Value.Body.Select(Transform).Where(x => x != null));
+				return $"{(word.Key.Return == null ? "void" : ToType(word.Key.Return))} {ToWordName(word.Key)}(" +
+				       string.Join(", ", word.Key.Arguments.Select((x, i) => $"{ToType(x)} arg_{i}").Reverse()) +
+				       $") {{\n{body.Indent()}\n}}";
 			}));
+
+		string ToWordName((string Name, Type Return, Type[] Arguments) key) =>
+			key.Name == "main"
+				? "main"
+				: $"{key.Name}_{ToType(key.Return)}_{string.Join('_', key.Arguments.Select(ToType))}";
 
 		string Transform(Ir expr) =>
 			expr switch {
@@ -37,7 +50,11 @@ namespace DaeForth {
 				Ir.Identifier id => ToName(id.Name),
 				Ir.MemberAccess ma => $"({Transform(ma.Value)}).{ma.Member}", 
 				Ir.If _if when _if.B is Ir.List ifList && ifList.Count == 0 => $"if({Transform(_if.Cond)}) {{\n{string.Join('\n', ((Ir.List) _if.A).Select(Transform).Where(x => x != null)).Indent()}\n}}", 
-				Ir.If _if => $"if({Transform(_if.Cond)}) {{\n{string.Join('\n', ((Ir.List) _if.A).Select(Transform).Where(x => x != null)).Indent()}\n}} else {{\n{string.Join('\n', ((Ir.List) _if.B).Select(Transform).Where(x => x != null)).Indent()}\n}}", 
+				Ir.If _if => $"if({Transform(_if.Cond)}) {{\n{string.Join('\n', ((Ir.List) _if.A).Select(Transform).Where(x => x != null)).Indent()}\n}} else {{\n{string.Join('\n', ((Ir.List) _if.B).Select(Transform).Where(x => x != null)).Indent()}\n}}",
+				Ir.CallWord cw when cw.Type == null => $"{ToWordName(cw.Word)}({string.Join(", ", cw.Arguments.Select(Transform))});", 
+				Ir.CallWord cw => $"{ToWordName(cw.Word)}({string.Join(", ", cw.Arguments.Select(Transform))})", 
+				Ir.Return ret when ret.Value == null => "return;", 
+				Ir.Return ret => $"return {Transform(ret.Value)};", 
 				_ => throw new NotImplementedException(expr.ToPrettyString())
 			};
 
@@ -48,6 +65,7 @@ namespace DaeForth {
 		}
 		
 		string ToType(Type type) {
+			if(type == null) return "void";
 			if(type == typeof(int)) return "int";
 			if(type == typeof(bool)) return "bool";
 			if(type == typeof(float)) return "float";

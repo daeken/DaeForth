@@ -26,7 +26,7 @@ namespace DaeForth {
 					compiler.InjectToken("]");
 				} else
 					compiler.Push(new Ir.UnaryOperation {
-						Type = op.Value.Func(Activator.CreateInstance(compiler.CanonicalizeValue(v).Type)).GetType(),
+						Type = op.Value.Func(Activator.CreateInstance(Compiler.CanonicalizeValue(v).Type)).GetType(),
 						Value = v,
 						Op = op.Value.Op
 					});

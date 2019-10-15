@@ -46,13 +46,61 @@ namespace DaeForth {
 	class OutputType<T> { }
 	class GlobalType<T> { }
 
+	public interface IStack<T> : IEnumerable<T> {
+		int Count { get; }
+		T Peek();
+		T Pop();
+		void Push(T value);
+	}
+
+	public class Stack<T> : IStack<T> {
+		readonly List<T> Values;
+
+		public Stack() => Values = new List<T>();
+		public Stack(params T[] values) => Values = values.ToList();
+		public Stack(IEnumerable<T> values) => Values = values.ToList();
+		
+		public int Count => Values.Count;
+		public T Peek() => Values[^1];
+		public T Pop() {
+			var value = Values[^1];
+			Values.RemoveAt(Values.Count - 1);
+			return value;
+		}
+		public void Push(T value) => Values.Add(value);
+		public IEnumerator<T> GetEnumerator() => Values.GetEnumerator();
+		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+	}
+
+	public class SurrogateStack : IStack<Ir> {
+		readonly Stack<Ir> Underlying;
+
+		public readonly List<Type> Arguments = new List<Type>();
+		
+		public SurrogateStack(Stack<Ir> underlying) => Underlying = new Stack<Ir>(underlying);
+
+		public IEnumerator<Ir> GetEnumerator() => Underlying.GetEnumerator();
+		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+		public int Count => Underlying.Count;
+		public Ir Peek() => new Ir.Identifier($"arg_{Arguments.Count}") { Type = Underlying.Peek().Type };
+
+		public Ir Pop() => Transform(Compiler.CanonicalizeValue(Underlying.Pop()));
+
+		Ir Transform(Ir value) {
+			Arguments.Add(value.Type);
+			return new Ir.Identifier($"arg_{Arguments.Count - 1}") { Type = value.Type };
+		}
+
+		public void Push(Ir value) => throw new NotSupportedException();
+	}
+
 	public class WordContext {
-		public readonly string Name;
 		public readonly Dictionary<string, Type> Locals = new Dictionary<string, Type>();
-		public readonly Stack<List<Ir>> StmtStack = new Stack<List<Ir>>(new[] { new List<Ir>() });
+		public readonly Stack<List<Ir>> StmtStack = new Stack<List<Ir>>(new List<Ir>());
 		public List<Ir> Body => StmtStack.Peek();
 
-		public WordContext(string name) => Name = name;
+		public SurrogateStack SurrogateStack;
 	}
 	
 	public class Compiler {
@@ -69,12 +117,16 @@ namespace DaeForth {
 		public MacroLocals MacroLocals = new MacroLocals();
 		
 		public readonly Dictionary<string, Ir> Macros = new Dictionary<string, Ir>();
+		public readonly Dictionary<string, Ir> Words = new Dictionary<string, Ir>();
 
 		public readonly Dictionary<string, (string Qualifier, Type Type)> Globals =
 			new Dictionary<string, (string Qualifier, Type Type)>();
 		
-		public readonly WordContext MainContext = new WordContext("main");
+		public readonly WordContext MainContext = new WordContext();
 		public WordContext CurrentWord;
+		public readonly Stack<WordContext> WordStack = new Stack<WordContext>();
+
+		public Dictionary<(string Name, Type Return, Type[] Arguments), WordContext> CompiledWords;
 
 		public bool Completed;
 		
@@ -96,6 +148,10 @@ namespace DaeForth {
 		}
 
 		public void Compile(string filename, string source) {
+			CompiledWords = new Dictionary<(string Name, Type Return, Type[] Arguments), WordContext> {
+				[("main", null, new Type[0])] = MainContext
+			};
+			
 			Tokenizer = new Tokenizer(filename, source);
 			Tokenizer.Prefixes.AddRange(PrefixHandlers.Select(x => x.Prefix));
 
@@ -120,6 +176,13 @@ namespace DaeForth {
 							if(Macros.TryGetValue(token.Value, out var macroBody)) {
 								InjectToken(macroBody);
 								InjectToken("call");
+								wordHandled = true;
+							}
+							
+							if(!wordHandled && Words.TryGetValue(token.Value, out var wordBody)) {
+								InjectToken(wordBody);
+								InjectToken(token.Value.Box());
+								InjectToken("~~call-word");
 								wordHandled = true;
 							}
 							
@@ -239,7 +302,7 @@ namespace DaeForth {
 			});
 		}
 
-		public Ir CanonicalizeValue(Ir value) {
+		public static Ir CanonicalizeValue(Ir value) {
 			int Size(Ir sval) {
 				if(sval is Ir.List slist)
 					return slist.Select(Size).Sum();
@@ -270,7 +333,7 @@ namespace DaeForth {
 		}
 
 		public void Warn(string message) =>
-			Console.Error.WriteLine($"Warning near {CurrentToken}: {message}");
+			ErrorWriter.WriteLine($"Warning near {CurrentToken}: {message}");
 
 		public void DumpStack() {
 			ErrorWriter.WriteLine("~Stack~");
@@ -296,8 +359,9 @@ namespace DaeForth {
 				Stack.Push(val);
 		}
 		public T Pop<T>() where T : Ir {
-			if(Stack.Count == 0) throw new CompilerException("Stack underflow");
-			var val = Stack.Pop();
+			var stack = Stack.Count > 0 || CurrentWord == MainContext ? (IStack<Ir>) Stack : CurrentWord.SurrogateStack;
+			if(stack.Count == 0) throw new CompilerException("Stack underflow");
+			var val = stack.Pop();
 			if(val is T tval) return tval;
 			var otype = val.GetType();
 			if(otype.IsConstructedGenericType && otype.GetGenericTypeDefinition() == typeof(Ir.ConstValue<>) &&
@@ -309,9 +373,10 @@ namespace DaeForth {
 		}
 		public Ir Pop() => Pop<Ir>();
 		public T TryPop<T>() where T : Ir {
-			if(Stack.Count == 0) return null;
-			var obj = Stack.Peek();
-			if(obj is T) return (T) Stack.Pop();
+			var stack = Stack.Count > 0 || CurrentWord == MainContext ? (IStack<Ir>) Stack : CurrentWord.SurrogateStack;
+			if(stack.Count == 0) return null;
+			var obj = stack.Peek();
+			if(obj is T) return (T) stack.Pop();
 			var otype = obj.GetType();
 			if(otype.IsConstructedGenericType && otype.GetGenericTypeDefinition() == typeof(Ir.ConstValue<>) &&
 			   typeof(T).IsConstructedGenericType &&
@@ -350,6 +415,6 @@ namespace DaeForth {
 			return enumerator.Current;
 		}
 
-		public string GenerateCode(Backend backend) => backend.GenerateCode(Globals, new[] { MainContext });
+		public string GenerateCode(Backend backend) => backend.GenerateCode(Globals, CompiledWords);
 	}
 }

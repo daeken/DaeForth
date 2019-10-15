@@ -19,13 +19,13 @@ namespace DaeForth {
 			intrinsics.ForEach(name => AddWordHandler(name, compiler => {
 				var value = compiler.Pop();
 				compiler.Push(new Ir.Call {
-					Functor = new Ir.Identifier(name), Arguments = new Ir.List(new[] { compiler.CanonicalizeValue(value) }), Type = value.Type
+					Functor = new Ir.Identifier(name), Arguments = new Ir.List(new[] { Compiler.CanonicalizeValue(value) }), Type = value.Type
 				});
 			}));
 
 			AddWordHandler("length",
 				compiler => compiler.Push(new Ir.Call {
-					Functor = new Ir.Identifier("length"), Arguments = new Ir.List(new[] { compiler.CanonicalizeValue(compiler.Pop()) }),
+					Functor = new Ir.Identifier("length"), Arguments = new Ir.List(new[] { Compiler.CanonicalizeValue(compiler.Pop()) }),
 					Type = typeof(float)
 				}));
 			

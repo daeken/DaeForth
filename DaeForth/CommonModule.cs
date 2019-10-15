@@ -31,17 +31,18 @@ namespace DaeForth {
 					}
 					btok.Add(elem.Box());
 				}
-				return compile ? EnsureCompiled(btok) : btok;
+				return compile ? (Ir) EnsureCompiled(btok) : btok;
 			}
 
 			var macroIndex = 0;
 
-			Ir EnsureCompiled(Ir pblock) {
-				if(!(pblock is Ir.List ilist)) return pblock;
+			Ir.Block EnsureCompiled(Ir pblock) {
+				if(pblock is Ir.Block ib) return ib;
+				if(!(pblock is Ir.List ilist)) throw new NotSupportedException();
 				
 				var index = ++macroIndex;
 				var list = ilist.Select(x => ((Ir.ConstValue<Token>) x).Value).ToList();
-				var args = new List<(string Name, string Type)>();
+				var args = new List<string>();
 				var rets = new List<string>();
 				if(list.Count > 2 && list[0].Type == TokenType.Word && list[0].RawValue == "(|") {
 					var inArgs = true;
@@ -59,10 +60,10 @@ namespace DaeForth {
 								if(parts.Length != 2)
 									throw new CompilerException(
 										": must appear only once in each argument declaration");
-								args.Add((parts[0] == "" ? null : parts[0], parts[1] == "" ? null : parts[1]));
+								args.Add(parts[0] == "" ? null : parts[0]);
 								break;
 							case { } x when inArgs:
-								args.Add((x, null));
+								args.Add(x);
 								break;
 							case { } x when !inArgs:
 								rets.Add(x);
@@ -72,42 +73,35 @@ namespace DaeForth {
 
 					if(i == list.Count || list[i].RawValue != "|)")
 						throw new CompilerException("Missing |) at end of signature");
-					if(args.Any(x => x.Name != null) && args.Any(x => x.Name == null))
+					if(args.Any(x => x != null) && args.Any(x => x == null))
 						throw new CompilerException(
 							"All arguments must be either named or unnamed, not a mix of both");
 					list = list.Skip(i + 1).ToList();
 				}
 
 				if(args.Count == 0 && list.Any(x => x.Type == TokenType.Word && x.Value == "_"))
-					args.Add(("_", null));
+					args.Add("_");
 
-				var storing = args.Where(x => x.Name != null && x.Name[0] == '$').Select(x => x.Name.Substring(1))
-					.ToList();
-				args = args.Select(x => x.Name?[0] == '$' ? (x.Name.Substring(1), x.Type) : x).ToList();
-				var rename = args.Select(x => x.Name).Where(x => x != null).Select(x => (x, $"__macro_{index}_{x}"))
-					.ToDictionary();
+				var storing = args.Where(x => x != null && x[0] == '$').Select(x => x.Substring(1)).ToList();
+				args = args.Select(x => x?[0] == '$' ? x.Substring(1) : x).ToList();
+				var rename = args.Where(x => x != null).Select(x => (x, $"__macro_{index}_{x}")).ToDictionary();
 
 				if(rename.Count != 0)
 					list = list.Select(x => x.Type == TokenType.Word && rename.ContainsKey(x.Value)
 						? new Token(x.StartLocation, x.EndLocation, x.Type, x.Prefixes, rename[x.Value], x.RawValue)
 						: x).ToList();
 
-				list = args.Select(x => x.Name).Where(x => x != null).Select(x => {
+				list = args.Where(x => x != null).Select(x => {
 					var pfx = storing.Contains(x) ? "=>$" : "=>";
 					return new Token(Location.Generated,
 						Location.Generated, TokenType.Word, new List<string> { pfx }, rename[x], $"{pfx}{rename[x]}");
 				}).Reverse().Concat(list).ToList();
 				list = new[] { Token.Generate("~~push-macro-scope") }.Concat(list)
 					.Concat(new[] { Token.Generate("~~pop-macro-scope") }).ToList();
-				return new Ir.List(list.Select(x => x.Box()));
+				return new Ir.Block { Body = new Ir.List(list.Select(x => x.Box())) };
 			}
 			
-			AddPrefixHandler("`", (compiler, token) => {
-				if(token.Value == "{")
-					compiler.Push(ParseBlock(compiler, compile: false));
-				else
-					compiler.InjectToken(token.Box());
-			});
+			AddPrefixHandler("`", (compiler, token) => compiler.InjectToken(token.Box()));
 			
 			AddPrefixHandler("/", (compiler, token) => {
 				if(token.Value == "{")
@@ -202,23 +196,22 @@ namespace DaeForth {
 				}
 			});
 			
-			AddWordHandler("{", compiler => compiler.Push(ParseBlock(compiler)));
+			AddWordHandler("{", compiler => compiler.Push(ParseBlock(compiler, compile: false)));
 			
 			AddWordHandler("~~push-macro-scope", compiler => compiler.MacroLocals.PushScope());
 			AddWordHandler("~~pop-macro-scope", compiler => compiler.MacroLocals.PopScope());
 			
-			// Caller for bare blocks on the stack
+			// Caller for bare or compiled blocks on the stack
 			AddWordHandler("call", compiler => {
-				var btok = compiler.TryPop<Ir.List>();
+				var btok = (Ir) compiler.TryPop<Ir.List>() ?? compiler.TryPop<Ir.Block>();
 				if(btok == null) return false;
-				compiler.InjectToken("~~push-macro-scope");
-				foreach(var val in btok) {
+				var block = EnsureCompiled(btok).Body;
+				foreach(var val in block) {
 					if(val is Ir.ConstValue<Token> tok)
 						compiler.InjectToken(tok.Value);
 					else
 						Debug.Fail("Non-token in block");
 				}
-				compiler.InjectToken("~~pop-macro-scope");
 				return true;
 			});
 			
@@ -270,13 +263,84 @@ namespace DaeForth {
 				var if_ = compiler.Pop();
 				compiler.AddStmt(new Ir.If { Cond = cond, A = if_, B = else_ });
 			});
+			
+			AddWordHandler("def-word", compiler => {
+				var name = compiler.TryPop<Ir.ConstValue<Token>>()?.Value?.Value ??
+				           compiler.TryPop<Ir.ConstValue<string>>()?.Value;
+				if(name == null) throw new CompilerException("Word name must be quoted identifier or string");
+				if(compiler.Words.ContainsKey(name)) compiler.Warn($"Redefining word '{name}'");
+				compiler.Words[name] = compiler.Pop();
+			});
+			
+			AddWordHandler(":", compiler => {
+				var name = compiler.ConsumeToken().RawValue;
+				var elems = new Ir.List();
+				foreach(var elem in compiler.Tokenizer) {
+					if(elem.Type == TokenType.Word && elem.RawValue == "((") {
+						var depth = 0;
+						foreach(var selem in compiler.Tokenizer) {
+							if(selem.Type == TokenType.String)
+								continue;
+							if(elem.Value == "((")
+								depth++;
+							else if(elem.Value == "))" && depth-- == 0)
+								break;
+						}
+					} else if(elem.Type == TokenType.Word && elem.RawValue == ";")
+						break;
+					else
+						elems.Add(elem.Box());
+				}
+				
+				if(compiler.Words.ContainsKey(name)) compiler.Warn($"Redefining word '{name}'");
+				compiler.Words[name] = elems;
+			});
+			
+			AddWordHandler("~~call-word", compiler => {
+				var name = compiler.Pop();
+				var block = compiler.Pop();
+				compiler.WordStack.Push(compiler.CurrentWord);
+				compiler.CurrentWord = new WordContext { SurrogateStack = new SurrogateStack(compiler.Stack) };
+				compiler.PushStack();
+				compiler.InjectToken(block);
+				compiler.InjectToken("call");
+				compiler.InjectToken(name);
+				compiler.InjectToken("~~complete-call-word");
+			});
+			
+			AddWordHandler("~~complete-call-word", compiler => {
+				var name = compiler.Pop<Ir.ConstValue<string>>().Value;
+				var word = compiler.CurrentWord;
+				compiler.CurrentWord = compiler.WordStack.Pop();
+				var ns = compiler.PopStack();
+				if(ns.Count > 1) throw new CompilerException($"Words can only return 0 or 1 values -- {ns.Count} on the stack");
+				Type ret = null;
+				if(ns.Count == 1) {
+					var retVal = ns.Pop();
+					word.Body.Add(new Ir.Return { Type = ret = retVal.Type, Value = retVal });
+				}
+
+				var key = (name, ret, word.SurrogateStack.Arguments.ToArray());
+				compiler.CompiledWords[key] = word;
+
+				var actualArgs = word.SurrogateStack.Arguments.Select(x => Compiler.CanonicalizeValue(compiler.Pop()))
+					.Reverse();
+				var invoke = new Ir.CallWord {
+					Type = ret, Word = key, Arguments = new Ir.List(actualArgs)
+				};
+				
+				if(ret == null)
+					compiler.AddStmt(invoke);
+				else
+					compiler.Push(invoke);
+			});
 
 			AddWordHandler("def-macro", compiler => {
 				var name = compiler.TryPop<Ir.ConstValue<Token>>()?.Value?.Value ??
 				           compiler.TryPop<Ir.ConstValue<string>>()?.Value;
 				if(name == null) throw new CompilerException("Macro name must be quoted identifier or string");
 				if(compiler.Macros.ContainsKey(name)) compiler.Warn($"Redefining macro '{name}'");
-				compiler.Macros[name] = compiler.Pop();
+				compiler.Macros[name] = EnsureCompiled(compiler.Pop());
 			});
 			
 			AddWordHandler(":m", compiler => {
@@ -316,7 +380,7 @@ namespace DaeForth {
 			AddWordHandler("drop", compiler => compiler.Pop());
 			
 			AddWordHandler("[", compiler => compiler.PushStack());
-			AddWordHandler("]", compiler => compiler.Push(compiler.PopStack().Reverse().ToList()));
+			AddWordHandler("]", compiler => compiler.Push(compiler.PopStack().ToList()));
 
 			Ir.List EnsureList(Compiler compiler, Ir value) {
 				if(value is Ir.List list) return list;
