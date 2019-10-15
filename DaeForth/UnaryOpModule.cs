@@ -10,6 +10,7 @@ namespace DaeForth {
 		public UnaryOpModule() {
 			var ops = new Dictionary<string, (UnaryOp Op, Func<dynamic, object> Func)> {
 				["not"] = (UnaryOp.LogicalNegate, v => !v), 
+				["neg"] = (UnaryOp.Minus, v => -v), 
 			};
 			
 			ops.ForEach(op => AddWordHandler(op.Key, compiler => {

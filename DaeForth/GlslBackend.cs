@@ -26,14 +26,16 @@ namespace DaeForth {
 		string Transform(Ir expr) =>
 			expr switch {
 				Ir.Assignment ass =>
-					ass.Value == null ? null : $"{Transform(ass.Identifier)} = {Transform(ass.Value)};",
-				Ir.BinaryOperation bop => $"({Transform(bop.Left)}) {bop.Op.ToOperator()} ({Transform(bop.Right)})", 
-				Ir.UnaryOperation uop => $"{uop.Op.ToOperator()}({Transform(uop.Value)})", 
+				ass.Value == null ? null : $"{Transform(ass.Lhs)} = {Transform(ass.Value)};",
+				Ir.BinaryOperation bop => $"({Transform(bop.Left)}) {bop.Op.ToOperator()} ({Transform(bop.Right)})",
+				Ir.UnaryOperation uop => $"{uop.Op.ToOperator()}({Transform(uop.Value)})",
+				Ir.Call call => $"{Transform(call.Functor)}({string.Join(", ", call.Arguments.Select(Transform))})", 
 				Ir.ConstValue<int> icv => icv.Value.ToString(), 
 				Ir.ConstValue<float> fcv => FormatFloat(fcv), 
 				Ir.ConstValue<bool> bcv => bcv ? "true" : "false", 
 				Ir.List list => $"{ToType(list.Type)}({string.Join(", ", list.Select(Transform) /*list.Select(x => Transform(x.CastTo(typeof(float))))*/)})", 
-				Ir.Identifier id => ToName(id.Name), 
+				Ir.Identifier id => ToName(id.Name),
+				Ir.MemberAccess ma => $"({Transform(ma.Value)}).{ma.Member}", 
 				Ir.If _if when _if.B is Ir.List ifList && ifList.Count == 0 => $"if({Transform(_if.Cond)}) {{\n{string.Join('\n', ((Ir.List) _if.A).Select(Transform).Where(x => x != null)).Indent()}\n}}", 
 				Ir.If _if => $"if({Transform(_if.Cond)}) {{\n{string.Join('\n', ((Ir.List) _if.A).Select(Transform).Where(x => x != null)).Indent()}\n}} else {{\n{string.Join('\n', ((Ir.List) _if.B).Select(Transform).Where(x => x != null)).Indent()}\n}}", 
 				_ => throw new NotImplementedException(expr.ToPrettyString())

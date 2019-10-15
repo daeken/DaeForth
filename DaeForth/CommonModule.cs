@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Numerics;
 using System.Text.RegularExpressions;
 using MoreLinq;
 using PrettyPrinter;
@@ -80,6 +81,9 @@ namespace DaeForth {
 				if(args.Count == 0 && list.Any(x => x.Type == TokenType.Word && x.Value == "_"))
 					args.Add(("_", null));
 
+				var storing = args.Where(x => x.Name != null && x.Name[0] == '$').Select(x => x.Name.Substring(1))
+					.ToList();
+				args = args.Select(x => x.Name?[0] == '$' ? (x.Name.Substring(1), x.Type) : x).ToList();
 				var rename = args.Select(x => x.Name).Where(x => x != null).Select(x => (x, $"__macro_{index}_{x}"))
 					.ToDictionary();
 
@@ -88,9 +92,11 @@ namespace DaeForth {
 						? new Token(x.StartLocation, x.EndLocation, x.Type, x.Prefixes, rename[x.Value], x.RawValue)
 						: x).ToList();
 
-				list = args.Select(x => x.Name).Where(x => x != null).Select(x => new Token(Location.Generated,
-						Location.Generated, TokenType.Word, new List<string> { "=>" }, rename[x], $"=>{rename[x]}"))
-					.Reverse().Concat(list).ToList();
+				list = args.Select(x => x.Name).Where(x => x != null).Select(x => {
+					var pfx = storing.Contains(x) ? "=>$" : "=>";
+					return new Token(Location.Generated,
+						Location.Generated, TokenType.Word, new List<string> { pfx }, rename[x], $"{pfx}{rename[x]}");
+				}).Reverse().Concat(list).ToList();
 				list = new[] { Token.Generate("~~push-macro-scope") }.Concat(list)
 					.Concat(new[] { Token.Generate("~~pop-macro-scope") }).ToList();
 				return new Ir.List(list.Select(x => x.Box()));
@@ -132,6 +138,8 @@ namespace DaeForth {
 			});
 			
 			AddPrefixHandler("=>", (compiler, token) => compiler.MacroLocals[token.Value] = compiler.Pop());
+			AddPrefixHandler("=>$",
+				(compiler, token) => compiler.MacroLocals[token.Value] = compiler.EnsureCheap(compiler.Pop()));
 			AddPrefixHandler("=>[", (compiler, token) => throw new NotImplementedException());
 			AddPrefixHandler("=[", (compiler, token) => throw new NotImplementedException());
 			AddPrefixHandler("=", (compiler, token) => {
@@ -301,22 +309,35 @@ namespace DaeForth {
 			});
 			
 			AddWordHandler("dup", compiler => {
-				var v = compiler.Pop();
-				if(v.IsConstant)
-					compiler.Push(v, v);
-				else
-					throw new NotImplementedException(); // TODO: Implement assignments
+				var v = compiler.EnsureCheap(compiler.Pop());
+				compiler.Push(v, v);
 			});
 			
 			AddWordHandler("drop", compiler => compiler.Pop());
 			
 			AddWordHandler("[", compiler => compiler.PushStack());
 			AddWordHandler("]", compiler => compiler.Push(compiler.PopStack().Reverse().ToList()));
+
+			Ir.List EnsureList(Compiler compiler, Ir value) {
+				if(value is Ir.List list) return list;
+				
+				Ir.List Swizzle(params string[] members) {
+					value = compiler.EnsureCheap(value);
+					return new Ir.List(members.Select(x => new Ir.MemberAccess(value, x) { Type = typeof(float) })) { Type = value.Type };
+				}
+
+				var type = value.Type;
+				if(type == typeof(Vector2)) return Swizzle("x", "y");
+				if(type == typeof(Vector3)) return Swizzle("x", "y", "z");
+				if(type == typeof(Vector4)) return Swizzle("x", "y", "z", "w");
+				return null;
+			}
 			
 			AddWordHandler("map", compiler => {
 				var block = compiler.Pop();
-				var list = compiler.TryPop<Ir.List>();
-				if(list == null) { compiler.Push(block); return false; }
+				var v = compiler.Pop();
+				var list = EnsureList(compiler, v);
+				if(list == null) { compiler.Push(block, v); return false; }
 
 				if(list.Count <= 1) {
 					compiler.Push(list);
@@ -336,8 +357,9 @@ namespace DaeForth {
 			
 			AddWordHandler("reduce", compiler => {
 				var block = compiler.Pop();
-				var list = compiler.TryPop<Ir.List>();
-				if(list == null) { compiler.Push(block); return false; }
+				var v = compiler.Pop();
+				var list = EnsureList(compiler, v);
+				if(list == null) { compiler.Push(block, v); return false; }
 
 				if(list.Count == 0) throw new CompilerException("Reduce on empty list");
 				if(list.Count == 1) {

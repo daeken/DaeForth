@@ -190,6 +190,17 @@ namespace DaeForth {
 
 		public void AddStmt(Ir stmt) => CurrentWord.Body.Add(stmt);
 
+		int TempI;
+		public string TempName => $"tmp_{TempI++}";
+
+		public Ir EnsureCheap(Ir value) {
+			if(value.IsCheap) return value;
+
+			var name = TempName;
+			AssignVariable(name, value);
+			return new Ir.Identifier(name) { Type = value.Type };
+		}
+
 		public void AssignVariable(string name, Ir value) {
 			value = CanonicalizeValue(value);
 			var type = value is Ir.IConstValue icv && icv.Value is Type typespec ? typespec : value.Type;
@@ -223,7 +234,7 @@ namespace DaeForth {
 			}
 
 			AddStmt(new Ir.Assignment {
-				Identifier = new Ir.Identifier(name), Type = type, 
+				Lhs = new Ir.Identifier(name) { Type = type }, Type = type, 
 				Value = value.Type == type ? value : null
 			});
 		}

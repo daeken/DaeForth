@@ -57,13 +57,16 @@ namespace DaeForth {
 
 						compiler.InjectToken("]");
 					}
-				} else
+				} else {
+					a = compiler.CanonicalizeValue(a);
+					b = compiler.CanonicalizeValue(b);
 					compiler.Push(new Ir.BinaryOperation {
-						Type = op.Value.Func(Activator.CreateInstance(compiler.CanonicalizeValue(a).Type),
-							Activator.CreateInstance(compiler.CanonicalizeValue(b).Type)).GetType(),
+						Type = op.Value.Func(Activator.CreateInstance(a.Type), Activator.CreateInstance(b.Type))
+							.GetType(),
 						Left = a, Right = b,
 						Op = op.Value.Op
 					});
+				}
 			}));
 		}
 	}

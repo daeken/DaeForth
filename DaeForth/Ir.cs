@@ -28,14 +28,14 @@ namespace DaeForth {
 	public abstract class Ir {
 		public Type Type;
 		public virtual bool IsConstant => false;
-		public virtual bool IsFree => IsConstant;
+		public virtual bool IsCheap => IsConstant;
 		
 		public static implicit operator Ir(List<Ir> e) => new List(e.ToList());
 		
 		public virtual Ir CastTo(Type type) => Type == type ? this : new Cast(type, this);
 
 		public class Assignment : Ir {
-			public new Identifier Identifier;
+			public Ir Lhs;
 			public Ir Value;
 		}
 
@@ -118,7 +118,7 @@ namespace DaeForth {
 			public Identifier(string name) => Name = name;
 			
 			public override bool IsConstant => false;
-			public override bool IsFree => true;
+			public override bool IsCheap => true;
 
 			public override string ToString() => $"Identifier({Name.ToPrettyString()})";
 		}
@@ -161,6 +161,31 @@ namespace DaeForth {
 			}
 
 			public override string ToString() => $"ConstValue<{typeof(T).Name}>({Value.ToPrettyString()})";
+		}
+
+		public class Swizzle : Ir {
+			public readonly Ir Value;
+			public readonly int[] Fields;
+
+			public Swizzle(Ir value, params int[] fields) {
+				Value = value;
+				Fields = fields;
+			}
+
+			public Swizzle(Ir value, IEnumerable<int> fields) {
+				Value = value;
+				Fields = fields.ToArray();
+			}
+		}
+
+		public class MemberAccess : Ir {
+			public readonly Ir Value;
+			public readonly string Member;
+
+			public MemberAccess(Ir value, string member) {
+				Value = value;
+				Member = member;
+			}
 		}
 	}
 }

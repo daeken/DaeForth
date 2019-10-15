@@ -1,5 +1,7 @@
 $(() => {
 	var cvs = $('#canvas')[0];
+	cvs.width = 800 * 2;
+	cvs.height = 600 * 2;
 	var ctx = cvs.getContext('webgl');
 	ctx.getExtension('OES_texture_float');
 	ctx.getExtension('OES_standard_derivatives');
@@ -26,7 +28,7 @@ $(() => {
 		}
 		p = ctx.createProgram();
 		v = ctx.createShader(ctx.VERTEX_SHADER);
-		ctx.shaderSource(v, 'precision mediump float; attribute vec4 p; varying vec2 position; void main() { position = p.xy * 2.0; gl_Position = vec4(p.xyz-1.0, 1); }');
+		ctx.shaderSource(v, 'precision highp float; attribute vec4 p; varying vec2 position; void main() { position = p.xy * 2.0; gl_Position = vec4(p.xyz-1.0, 1); }');
 		ctx.compileShader(v);
 		if(!ctx.getShaderParameter(v, ctx.COMPILE_STATUS)) {
 			console.log('Failed to compile vertex shader.');
@@ -60,10 +62,10 @@ $(() => {
 	}
 	
 	function render() {
-		ctx.viewport(0, 0, 800, 600);
+		ctx.viewport(0, 0, 800 * 2, 600 * 2);
 		ctx.enableVertexAttribArray(ctx.getAttribLocation(p, 'p'));
 		ctx.useProgram(p);
-		ctx.uniform2f(ctx.getUniformLocation(p, 'resolution'), 800, 600);
+		ctx.uniform2f(ctx.getUniformLocation(p, 'resolution'), 800 * 2, 600 * 2);
 
 		ctx.drawArrays(4, 0, 6);
 		ctx.finish();
@@ -76,7 +78,7 @@ $(() => {
 			//contentType: "application/x-www-form-urlencoded",
 			data: { code: editor.getValue() }
 		}).done(x => {
-			var comb = '#extension GL_OES_standard_derivatives : enable\nprecision mediump float;\n';
+			var comb = '#extension GL_OES_standard_derivatives : enable\nprecision highp float;\n';
 			x.Errors = x.Errors != null ? clean(x.Errors) : '';
 			x.Code = x.Code != null ? clean(x.Code) : null;
 			if(x.Errors.replace(/[\n\r ]/g, '').length != 0)
