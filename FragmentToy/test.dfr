@@ -5,6 +5,6 @@
 
 :m call-all (| funcs $value |) funcs /{ value *_ } ;
 
-[ `dFdx `dFdy ] position !* 4778 * sin length call-all \+ 5 * =bar
+`{ dFdx dFdy } position !* 4778 * sin length call-all \+ 5 * =bar
 
 [ position ![ 0.7 4 ] * \* * 3 * cos bar 1 ] [ .9 position .x 47 * sin * .6 1 1 ] * ->fragColor
