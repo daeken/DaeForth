@@ -269,7 +269,7 @@ namespace DaeForth {
 				           compiler.TryPop<Ir.ConstValue<string>>()?.Value;
 				if(name == null) throw new CompilerException("Word name must be quoted identifier or string");
 				if(compiler.Words.ContainsKey(name)) compiler.Warn($"Redefining word '{name}'");
-				compiler.Words[name] = compiler.Pop();
+				compiler.Words[name] = EnsureCompiled(compiler.Pop());
 			});
 			
 			AddWordHandler(":", compiler => {
@@ -293,7 +293,7 @@ namespace DaeForth {
 				}
 				
 				if(compiler.Words.ContainsKey(name)) compiler.Warn($"Redefining word '{name}'");
-				compiler.Words[name] = elems;
+				compiler.Words[name] = EnsureCompiled(elems);
 			});
 			
 			AddWordHandler("~~call-word", compiler => {
