@@ -191,6 +191,8 @@ namespace DaeForth {
 		public class MemberAccess : Ir {
 			public readonly Ir Value;
 			public readonly string Member;
+			public override bool IsConstant => Value.IsConstant;
+			public override bool IsCheap => Value.IsCheap;
 
 			public MemberAccess(Ir value, string member) {
 				Value = value;
