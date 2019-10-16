@@ -3,22 +3,76 @@
 
 :m ->fragColor =$gl_FragColor ;
 
-:m call-all (| funcs $value |) funcs /{ value *_ } ;
+:m when (| block cond |) block { } cond if ;
 
-{ + } `add def-word
+:m sd-sphere (| p s |) p length s - ;
 
-: mul (| a b |) a b * ;
+: sd-box (| p b |)
+    p abs b - =d
+    d \max 0 min d 0 max length +
+;
 
-: noret ;
+:m union min ;
 
-5 6 mul =testing2
-[ 5 6 ] 7 mul =testing
+: map-scene (| p |)
+    [
+        p [ -2 1 1 ] + 2 sd-sphere
+        p [ 1 1 1 ] sd-box
+        p [ 3 -5 0 ] + [ 1 1 1 ] sd-box
+    ] \union
+;
 
-noret
+: cast-ray (| ro rd |)
+    20 =>tmax
+    1 =t
 
-5 6 add =testing2
-[ 5 6 ] [ 7 8 ] add =testing
+    { drop
+        0.0004 t * =>precis
+        rd t * ro + map-scene =res
+        t res .5 * + =t
+        &break res precis < t tmax > or when
+    } 128 times
+    
+    t 100000 t tmax <= select !print
+;
 
-{ dFdx dFdy } position !* 4778 * sin length call-all \+ 5 * =bar
+: calc-normal (| pos |)
+    [ 1 -1 ] 0.0005 * =>e
+    { .xyy .yyx .yxy .xxx } /{ e *_ !=>ce pos ce + map-scene * } \+ normalize
+;
 
-[ position ![ 0.7 4 ] * \* * 3 * cos bar 1 ] [ .9 position .x 47 * sin * .6 1 1 ] * ->fragColor
+: render (| ro rd |)
+    ro rd cast-ray =t
+    
+    [ rd t * ro + calc-normal t ] [ 0 0 0 0 ] t 100000 != select
+;
+
+: create-perspective-matrix (| fov aspect-ratio near-plane far-plane |)
+    1 fov .5 * tan / =y-scale
+    y-scale aspect-ratio / =>x-scale
+    
+    (( [
+        [ x-scale 0 0 0 ]
+        [ 0 y-scale 0 0 ]
+        [ 0 0 far-plane near-plane far-plane - / -1 ]
+        [ 0 0 0 near-plane far-plane * near-plane far-plane - / ]
+    ] ))
+    [
+        [ x-scale 0 0 0 ]
+        [ 0 y-scale 0 0 ]
+        [ 0 0 far-plane near-plane far-plane - / 0 ]
+        [ 0 0 -1 near-plane far-plane * near-plane far-plane - / ]
+    ] matrix
+;
+
+[ 2 2 5 ] =camera-position
+
+45 radians resolution .yx \/ 1 5000 create-perspective-matrix =camera-matrix
+
+position 2 / 1 - =real-position
+
+camera-matrix [ [ real-position 2 ] normalize 0 ] * .xyz =ray-direction
+camera-position ray-direction render =normal-depth
+[ normal-depth .xyz 1 + 2 / [ 0 0 0 ] normal-depth .w 0 != select 1 ] ->fragColor
+
+

@@ -16,7 +16,9 @@ namespace DaeForth {
 		LessThanOrEqual, 
 		LessThan, 
 		GreaterThan, 
-		GreaterThanOrEqual
+		GreaterThanOrEqual, 
+		LogicalOr, 
+		LogicalAnd
 	}
 
 	public enum UnaryOp {
@@ -96,6 +98,10 @@ namespace DaeForth {
 
 		public class If : Ir {
 			public Ir Cond, A, B;
+		}
+
+		public class For : Ir {
+			public Ir Iterator, Count, Body;
 		}
 
 		public class Return : Ir {
@@ -190,6 +196,10 @@ namespace DaeForth {
 				Value = value;
 				Member = member;
 			}
+		}
+
+		public class Ternary : Ir {
+			public Ir Cond, A, B;
 		}
 	}
 }

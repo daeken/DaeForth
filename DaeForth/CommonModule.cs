@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Numerics;
 using System.Text.RegularExpressions;
 using MoreLinq;
 using PrettyPrinter;
@@ -101,7 +100,7 @@ namespace DaeForth {
 				return new Ir.Block { Body = new Ir.List(list.Select(x => x.Box())) };
 			}
 			
-			AddPrefixHandler("`", (compiler, token) => compiler.InjectToken(token.Box()));
+			AddPrefixHandler("&", (compiler, token) => compiler.InjectToken(token.Box()));
 			
 			AddPrefixHandler("/", (compiler, token) => {
 				if(token.Value == "{")
@@ -233,6 +232,16 @@ namespace DaeForth {
 				compiler.InjectToken("~~complete-call-collect");
 			});
 
+			AddWordHandler("call-collect-with", compiler => {
+				var value = compiler.Pop();
+				var block = compiler.Pop();
+				compiler.CurrentWord.StmtStack.Push(new List<Ir>());
+				compiler.InjectToken(value);
+				compiler.InjectToken(block);
+				compiler.InjectToken("call");
+				compiler.InjectToken("~~complete-call-collect");
+			});
+
 			AddWordHandler("~~complete-call-collect",
 				compiler => compiler.Push(new Ir.List(compiler.CurrentWord.StmtStack.Pop())));
 			
@@ -243,6 +252,21 @@ namespace DaeForth {
 				var if_ = compiler.Pop();
 				compiler.InjectToken(cond.Value ? if_ : else_);
 				compiler.InjectToken("call");
+			});
+			
+			AddWordHandler("select", compiler => {
+				var cond = compiler.Pop();
+				var b = compiler.Pop();
+				var a = compiler.Pop();
+				if(cond is Ir.ConstValue<bool> cvb)
+					compiler.Push(cvb.Value ? a : b);
+				else {
+					a = Compiler.CanonicalizeValue(a);
+					b = Compiler.CanonicalizeValue(b);
+					if(a.Type != b.Type)
+						throw new CompilerException("Both options to runtime select must have the same type");
+					compiler.Push(new Ir.Ternary { Cond = cond, A = a, B = b, Type = a.Type });
+				}
 			});
 			
 			AddWordHandler("if", compiler => {
@@ -281,9 +305,9 @@ namespace DaeForth {
 						foreach(var selem in compiler.Tokenizer) {
 							if(selem.Type == TokenType.String)
 								continue;
-							if(elem.Value == "((")
+							if(selem.RawValue == "((")
 								depth++;
-							else if(elem.Value == "))" && depth-- == 0)
+							else if(selem.RawValue == "))" && depth-- == 0)
 								break;
 						}
 					} else if(elem.Type == TokenType.Word && elem.RawValue == ";")
@@ -316,7 +340,7 @@ namespace DaeForth {
 				if(ns.Count > 1) throw new CompilerException($"Words can only return 0 or 1 values -- {ns.Count} on the stack");
 				Type ret = null;
 				if(ns.Count == 1) {
-					var retVal = ns.Pop();
+					var retVal = Compiler.CanonicalizeValue(ns.Pop());
 					word.Body.Add(new Ir.Return { Type = ret = retVal.Type, Value = retVal });
 				}
 
@@ -352,9 +376,9 @@ namespace DaeForth {
 						foreach(var selem in compiler.Tokenizer) {
 							if(selem.Type == TokenType.String)
 								continue;
-							if(elem.Value == "((")
+							if(selem.RawValue == "((")
 								depth++;
-							else if(elem.Value == "))" && depth-- == 0)
+							else if(selem.RawValue == "))" && depth-- == 0)
 								break;
 						}
 					} else if(elem.Type == TokenType.Word && elem.RawValue == ";")
@@ -391,9 +415,9 @@ namespace DaeForth {
 				}
 
 				var type = value.Type;
-				if(type == typeof(Vector2)) return Swizzle("x", "y");
-				if(type == typeof(Vector3)) return Swizzle("x", "y", "z");
-				if(type == typeof(Vector4)) return Swizzle("x", "y", "z", "w");
+				if(type == typeof(Vec2)) return Swizzle("x", "y");
+				if(type == typeof(Vec3)) return Swizzle("x", "y", "z");
+				if(type == typeof(Vec4)) return Swizzle("x", "y", "z", "w");
 				return null;
 			}
 			
@@ -487,6 +511,28 @@ namespace DaeForth {
 					compiler.InjectToken("call");
 				}
 			});
+			
+			AddWordHandler("times", compiler => {
+				var count = compiler.Pop();
+				var block = compiler.Pop();
+				var iter = new Ir.Identifier(compiler.TempName) { Type = typeof(int) };
+				compiler.InjectToken(block);
+				compiler.InjectToken(iter);
+				compiler.InjectToken("call-collect-with");
+				compiler.InjectToken(count);
+				compiler.InjectToken(iter);
+				compiler.InjectToken("~~times");
+			});
+			
+			AddWordHandler("~~times", compiler => {
+				var iter = compiler.Pop();
+				var count = compiler.Pop();
+				var body = compiler.Pop();
+				compiler.AddStmt(new Ir.For { Iterator = iter, Count = count, Body = body });
+			});
+			
+			AddWordHandler("break", compiler => compiler.AddStmt(new Ir.Break()));
+			AddWordHandler("continue", compiler => compiler.AddStmt(new Ir.Continue()));
 			
 			AddWordHandler((compiler, token) => {
 				if(IntRegex.IsMatch(token)) {

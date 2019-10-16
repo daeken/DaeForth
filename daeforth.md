@@ -49,14 +49,14 @@ Locals and macro locals
 
 	5 =name (( Store 5 in variable 'name' ))
 	5 =>name (( Store 5 in macro local 'name' ))
-	5 =$name (( Store 5 in macro local 'name', while ensuring it's backed by a variable ))
+	5 =>$name (( Store 5 in macro local 'name', while ensuring it's backed by a variable ))
 
 Arrays
 ------
 
 	[ 0 1 2 3 ]
 	[ [ 0 1 2 ] [ 3 4 5 ] [ 6 7 8 ] ]
-	0...3 (( [ 0 1 2 ] ))
+	[ 0...3 ] (( [ 0 1 2 ] ))
 	[ 0..3 ]  (( [ 0 1 2 3 ] ))
 	[ 0...3 10...13 ] (( [ 0 1 2 10 11 12 ] ))
 	[ 0...100,10 ] (( [ 0 10 20 30 40 50 60 70 80 90 ] ))
@@ -257,8 +257,8 @@ Words
 - `enumerate (| arr |)` -- Returns an enumerated array of `arr`.  `[ 4 5 6 ] enumerate (( [ [ 0 4 ] [ 1 5 ] [ 2 6 ] ] ))`
 - `return (| value |)` -- Returns from word with given value.  If `value` is unit ( `()` ), no value is returned.
 - `global (| type |)` -- Decorates a type assigned to a variable to indicate globalness.  `@vec3 global =some-position`
-- `defmacro (| block name |)` -- Declares a new macro based on a block.  ``{ 5 + } `add-five defmacro``
-- `defword (| block name |)` -- Declares a new word based on a block.  ``{ 5 + } `add-five-word defword``
+- `defmacro (| block name |)` -- Declares a new macro based on a block.  `{ 5 + } &add-five defmacro`
+- `defword (| block name |)` -- Declares a new word based on a block.  `{ 5 + } &add-five-word defword`
 - `swizzle (| arr indices |)` -- Swizzles an array using an array of indices.  `[ 4 5 6 7 ] [ 1 2 2 2 2 0 ] swizzle (( [ 5 6 6 6 6 4 ] ))`
 - `car (| arr |)` and `cdr (| arr |)` -- Returns the first and rest of an array, respectively.
 - `join (| arr-1 arr-2 |)` -- Concatenate two arrays and return the result.
@@ -281,11 +281,12 @@ Match allows extensive pattern matching.  Basic form:
 			[ [ &a 5 ] ] { a 2 * } (( match any array [ x 5 ] ))
 			[ [ () temp ] ] { 1000 } (( match any array [ x 25 ] ))
 			[ [ &a &b &c ] ] { a b + c + } (( match any array [ x y z ] ))
-			[ [ () () () () ...rest ] ] { rest } (( match any array of 4 or more elements, binding remaining elements in rest ))
+			[ [ () () () () &...rest ] ] { rest } (( match any array of 4 or more elements, binding remaining elements in rest ))
 			[ 1234 ] { 0 } (( match 1234 ))
 			1234 { 0 } (( match 1234 ))
+			&&a { 0 } (( match literal token &a (( useful for matching tokens in raw blocks )) ))
 			[ &a ] { a } (( match any value ))
-			&a { a } (( same match ))
+			&a { a } (( match any value ))
 			() { 0 } (( match any value, ignoring it ))
 		] _ match ;
 
@@ -315,13 +316,13 @@ If the final element of the match list is a block, it will be used as a constrai
 	[
 		[ () { 5 % 0 == } ] { 5 } (( Matches any element that is evenly divisible by 5 ))
 		[ [ &a &b ] { a b > } ] { 1 } (( Matches any 2-array where the first element is greater than the second ))
-	] _ do-match
+	] _ match
 
 ### List operations
 
 	:m car
 		[
-			[ [ () ...rest ] ] { rest }
+			[ [ () &...rest ] ] { rest }
 		] _ match ;
 
 	:m cdr
@@ -329,3 +330,10 @@ If the final element of the match list is a block, it will be used as a constrai
 			[ [ &first ... ] ] { first }
 			() { () }
 		] _ match ;
+
+### Match Words/Macros
+
+These define a word or macro taking a single argument, which is implicitly matched upon:
+
+	:match-word car [ [ () &...rest ] ] { rest } () { [] } ;
+	:match-macro cdr [ [ &first ... ] ] { first } () { () } ;

@@ -20,6 +20,8 @@ namespace DaeForth {
 				["*"] = (BinaryOp.Multiply, (a, b) => a * b), 
 				["/"] = (BinaryOp.Divide, (a, b) => a / b), 
 				["%"] = (BinaryOp.Modulus, (a, b) => a % b), 
+				["and"] = (BinaryOp.LogicalAnd, (a, b) => a && b), 
+				["or"] = (BinaryOp.LogicalOr, (a, b) => a || b), 
 			};
 			
 			ops.ForEach(op => AddWordHandler(op.Key, compiler => {

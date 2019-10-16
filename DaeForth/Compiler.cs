@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Numerics;
 using PrettyPrinter;
 
 namespace DaeForth {
@@ -147,10 +146,23 @@ namespace DaeForth {
 			PrefixHandlers.AddRange(module.PrefixHandlers);
 		}
 
+		class WordKeyEquality : IEqualityComparer<(string Name, Type Return, Type[] Arguments)> {
+			public bool Equals((string Name, Type Return, Type[] Arguments) x,
+				(string Name, Type Return, Type[] Arguments) y) =>
+				x.Name == y.Name && x.Return == y.Return && x.Arguments.Zip(y.Arguments).All(x => x.First == x.Second);
+
+			public int GetHashCode((string Name, Type Return, Type[] Arguments) obj) =>
+				(obj.Name, obj.Return,
+					new[] { typeof(void) }.Concat(obj.Arguments).Select(x => x.GetHashCode())
+						.Aggregate(HashCode.Combine))
+				.GetHashCode();
+		}
+
 		public void Compile(string filename, string source) {
-			CompiledWords = new Dictionary<(string Name, Type Return, Type[] Arguments), WordContext> {
-				[("main", null, new Type[0])] = MainContext
-			};
+			CompiledWords =
+				new Dictionary<(string Name, Type Return, Type[] Arguments), WordContext>(new WordKeyEquality()) {
+					[("main", null, new Type[0])] = MainContext
+				};
 			
 			Tokenizer = new Tokenizer(filename, source);
 			Tokenizer.Prefixes.AddRange(PrefixHandlers.Select(x => x.Prefix));
@@ -245,9 +257,9 @@ namespace DaeForth {
 			type switch {
 				"int" => typeof(int), 
 				"float" => typeof(float), 
-				"vec2" => typeof(Vector2), 
-				"vec3" => typeof(Vector3), 
-				"vec4" => typeof(Vector4), 
+				"vec2" => typeof(Vec2), 
+				"vec3" => typeof(Vec3), 
+				"vec4" => typeof(Vec4), 
 				_ => throw new CompilerException($"Unknown type '{type}'")
 			};
 
@@ -307,9 +319,9 @@ namespace DaeForth {
 				if(sval is Ir.List slist)
 					return slist.Select(Size).Sum();
 				var t = sval.Type;
-				if(t == typeof(Vector2)) return 2;
-				if(t == typeof(Vector3)) return 3;
-				if(t == typeof(Vector4)) return 4;
+				if(t == typeof(Vec2)) return 2;
+				if(t == typeof(Vec3)) return 3;
+				if(t == typeof(Vec4)) return 4;
 				return 1;
 			}
 			
@@ -318,13 +330,13 @@ namespace DaeForth {
 			var nlist = new Ir.List(list.Select(CanonicalizeValue));
 			switch(Size(nlist)) {
 				case 2:
-					nlist.Type = typeof(Vector2);
+					nlist.Type = typeof(Vec2);
 					break;
 				case 3:
-					nlist.Type = typeof(Vector3);
+					nlist.Type = typeof(Vec3);
 					break;
 				case 4:
-					nlist.Type = typeof(Vector4);
+					nlist.Type = typeof(Vec4);
 					break;
 				default:
 					throw new CompilerException("Only arrays of size 2-4 can be canonicalized");

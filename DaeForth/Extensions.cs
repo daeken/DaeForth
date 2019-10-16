@@ -22,6 +22,8 @@ namespace DaeForth {
 				BinaryOp.LessThan => "<",
 				BinaryOp.GreaterThan => ">",
 				BinaryOp.GreaterThanOrEqual => ">=", 
+				BinaryOp.LogicalAnd => "&&", 
+				BinaryOp.LogicalOr => "||", 
 				_ => throw new NotImplementedException()
 			};
 
