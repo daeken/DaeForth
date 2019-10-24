@@ -1,5 +1,6 @@
 @vec2 varying =position
 @vec2 uniform =resolution
+@vec3 uniform =cameraPos
 
 :m ->fragColor =$gl_FragColor ;
 
@@ -12,19 +13,61 @@
     d \max 0 min d 0 max length +
 ;
 
-:m union min ;
+: smin (| a b k |)
+    k a b - abs - 0 max k / =h
+    a b min [ h h k 1 4 / ] \* -
+;
 
-: map-scene (| p |)
+: sdif (| d1 d2 k |)
+    0.5 !d2 d1 + * k / - 0 1 clamp =h
+    d2 d1 neg h mix [ k h 1 h - ] \* +
+;
+
+: sint (| d1 d2 k |)
+    0.5 !d2 d1 - * k / - 0 1 clamp =h
+    d2 d1 h mix [ k h 1 h - ] \* +
+;
+
+:m union \min ;
+:m smooth-union (| list k |) list \{ k smin } list union k 0 != select ;
+
+:m difference \{ (| d1 d2 |) d1 neg d2 max } ;
+:m smooth-difference (| list k |) list \{ k sdif } list difference k 0 != select ;
+
+:m intersection \max ;
+:m smooth-intersection (| list k |) list \{ k sint } list intersection k 0 != select ;
+
+:m scale (| block factor p |) p factor / *block factor * ;
+
+:m twist (| block factor p |)
+    p .y factor * cos =c
+    p .y factor * sin =s
     [
-        p [ -2 1 1 ] + 2 sd-sphere
-        p [ 1 1 1 ] sd-box
-        p [ 3 -5 0 ] + [ 1 1 1 ] sd-box
-    ] \union
+        p .x c * p .z s * -
+        p .y
+        p .x s * p .z c * +
+    ] =tmp tmp *block
+;
+
+:m repeat (| block c p |) p .5 c * + c mod .5 c * - *block ;
+
+:m onion (| sdf thickness |) sdf abs thickness - ;
+
+: map-scene (| p2 |)
+    { (| $p |)
+        [
+            { [ .08 !!] sd-box } .2 p repeat
+            [
+                p 1.5 sd-sphere
+                p [ 0 1.5 0 ] - .7 sd-sphere
+            ] 1.5 smooth-union .03 onion
+        ] 0.001 smooth-difference
+    } 1.5 p2 [ 0 .5 0 ] + twist
 ;
 
 : cast-ray (| ro rd |)
     20 =>tmax
-    1 =t
+    .01 =t
 
     { drop
         0.0004 t * =>precis
@@ -33,7 +76,7 @@
         &break res precis < t tmax > or when
     } 128 times
     
-    t 100000 t tmax <= select !print
+    t 100000 t tmax <= select
 ;
 
 : calc-normal (| pos |)
@@ -51,12 +94,6 @@
     1 fov .5 * tan / =y-scale
     y-scale aspect-ratio / =>x-scale
     
-    (( [
-        [ x-scale 0 0 0 ]
-        [ 0 y-scale 0 0 ]
-        [ 0 0 far-plane near-plane far-plane - / -1 ]
-        [ 0 0 0 near-plane far-plane * near-plane far-plane - / ]
-    ] ))
     [
         [ x-scale 0 0 0 ]
         [ 0 y-scale 0 0 ]
@@ -65,9 +102,23 @@
     ] matrix
 ;
 
-[ 2 2 5 ] =camera-position
+: create-lookat-matrix (| pos target up |)
+    pos target - normalize =z-axis
+    up z-axis cross normalize =x-axis
+    z-axis x-axis cross =y-axis
+    [
+        [ x-axis x-axis pos dot ]
+        [ y-axis y-axis pos dot ]
+        [ z-axis z-axis pos dot ]
+        [ 0 0 0 1 ]
+    ] matrix
+;
 
-45 radians resolution .yx \/ 1 5000 create-perspective-matrix =camera-matrix
+cameraPos =>camera-position
+
+    camera-position [ 0.0001 !!] [ 0 1 0 ] create-lookat-matrix
+    60 radians resolution .yx \/ 1 5000 create-perspective-matrix
+* =camera-matrix
 
 position 2 / 1 - =real-position
 
@@ -75,4 +126,8 @@ camera-matrix [ [ real-position 2 ] normalize 0 ] * .xyz =ray-direction
 camera-position ray-direction render =normal-depth
 [ normal-depth .xyz 1 + 2 / [ 0 0 0 ] normal-depth .w 0 != select 1 ] ->fragColor
 
-
+(( [
+    [ 6 ] { 0 print }
+    [ 7 ] { 0 print }
+    { 55 print }
+] 5 match ))

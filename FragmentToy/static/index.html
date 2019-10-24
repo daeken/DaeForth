@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>FragmentToy</title>
-    <!--<script src="//code.jquery.com/jquery-3.4.1.min.js"></script>-->
-    <script src="jquery-2.2.3.min.js"></script>
+    <script src="//code.jquery.com/jquery-3.4.1.min.js"></script>
     <script src="main.js"></script>
     <style type="text/css" media="screen">
         #editor {
@@ -28,14 +27,17 @@
 <body>
     <div>
         <span>
-            <canvas id="canvas"></canvas>
+            <canvas id="canvas" tabindex="1"></canvas>
+            <div id="camera-spos"></div>
+            <div id="camera-position"></div>
         </span>
         <span>
-            <div>Cursor at: <span id="position"></span></div>
             <div id="editor"></div>
+            <div>Cursor at: <span id="position"></span></div>
             <div id="log"></div>
         </span>
     </div>
     <script src="//pagecdn.io/lib/ace/1.4.6/ace.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/mathjs/6.2.2/math.min.js"></script>
 </body>
 </html>

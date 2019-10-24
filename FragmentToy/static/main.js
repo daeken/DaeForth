@@ -8,6 +8,79 @@ $(() => {
 	
 	var clean = str => str.replace(/[\uFEFF\0]/g, '').replace(/(^\n+|\n$)/g, '');
 	
+	var cameraRadius = 6;
+	var cameraTheta = 0; // Horizontal
+	var cameraPhi = 0; // Vertical
+	
+	var keys = {};
+	function aniFrame() {
+		requestAnimationFrame(aniFrame);
+		if(keys.length == 0) return;
+		var mod = false;
+		var cur = new Date();
+		for(let key in keys) {
+			var timeDelta = (cur - keys[key]) / 1000;
+			keys[key] = cur;
+			console.log(timeDelta);
+			key = parseInt(key);
+			switch(key) {
+				case 87: // W
+					modPhi(timeDelta);
+					mod = true;
+					break;
+				case 65: // A
+					modTheta(-timeDelta);
+					mod = true;
+					break;
+				case 83: // S
+					modPhi(-timeDelta);
+					mod = true;
+					break;
+				case 68: // D
+					modTheta(timeDelta);
+					mod = true;
+					break;
+				case 81: // Q
+					modRadius(timeDelta * 5);
+					mod = true;
+					break;
+				case 69: // E
+					modRadius(-timeDelta * 5);
+					mod = true;
+					break;
+			}
+		}
+		if(!mod) return;
+		updateCameraPos();
+		render();
+	}
+	requestAnimationFrame(aniFrame);
+	
+	var cameraPos;
+	
+	function updateCameraPos() {
+		var cp = cameraPos = [
+			cameraRadius * Math.cos(cameraPhi) * Math.sin(cameraTheta),
+			cameraRadius * Math.sin(cameraPhi),
+			cameraRadius * Math.cos(cameraPhi) * Math.cos(cameraTheta),
+		];
+		$('#camera-spos').text('Camera spherical coords: (' + cameraRadius + ', ' + cameraTheta + ', ' + cameraPhi + ')')
+		$('#camera-position').text('Camera position: (' + cp[0] + ', ' + cp[1] + ', ' + cp[2] + ')')
+	}
+	updateCameraPos();
+
+	cvs.addEventListener('keydown', e => {
+		if(e.repeat) return;
+		keys[e.which] = new Date();
+	});
+	cvs.addEventListener('keyup', e => {
+		delete keys[e.which];
+	});
+	
+	const modTheta = (v) => cameraTheta += v;
+	const modPhi = (v) => cameraPhi = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, cameraPhi + v));
+	const modRadius = (v) => cameraRadius = Math.max(0.1, cameraRadius + v);
+	
 	var p, v, f, buf;
 	function setupShader(code) {
 		if(v !== undefined) {
@@ -66,6 +139,8 @@ $(() => {
 		ctx.enableVertexAttribArray(ctx.getAttribLocation(p, 'p'));
 		ctx.useProgram(p);
 		ctx.uniform2f(ctx.getUniformLocation(p, 'resolution'), 800 * 2, 600 * 2);
+		var cp = cameraPos;
+		ctx.uniform3f(ctx.getUniformLocation(p, 'cameraPos'), cp[0], cp[1], cp[2]);
 
 		ctx.drawArrays(4, 0, 6);
 		ctx.finish();

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using PrettyPrinter;
 
 namespace DaeForth {
@@ -44,6 +45,12 @@ namespace DaeForth {
 	class VaryingType<T> { }
 	class OutputType<T> { }
 	class GlobalType<T> { }
+
+	public sealed class Unit {
+		public static readonly Unit Instance = new Unit();
+		public static readonly Ir.ConstValue<Unit> Value = new Ir.ConstValue<Unit>(Instance);
+		Unit() {}
+	}
 
 	public interface IStack<T> : IEnumerable<T> {
 		int Count { get; }
@@ -127,6 +134,8 @@ namespace DaeForth {
 
 		public Dictionary<(string Name, Type Return, Type[] Arguments), WordContext> CompiledWords;
 
+		public readonly Stack<TaskCompletionSource<object>> TaskStack = new Stack<TaskCompletionSource<object>>();
+
 		public bool Completed;
 		
 		Token CurrentToken;
@@ -138,6 +147,7 @@ namespace DaeForth {
 			Add(new ShaderModule());
 			Add(new BinaryOpModule());
 			Add(new UnaryOpModule());
+			Add(new MatchModule());
 		}
 		
 		public void Add(DaeforthModule module) {
@@ -312,6 +322,13 @@ namespace DaeForth {
 				Lhs = new Ir.Identifier(name) { Type = type }, Type = type, 
 				Value = value.Type == type ? value : null
 			});
+		}
+
+		public Task RunToHere() {
+			InjectToken("~~run-to-here");
+			var tcs = new TaskCompletionSource<object>();
+			TaskStack.Push(tcs);
+			return tcs.Task;
 		}
 
 		public static Ir CanonicalizeValue(Ir value) {

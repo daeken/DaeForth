@@ -21,11 +21,9 @@ namespace DaeForth {
 				var depth = 0;
 				foreach(var elem in compiler.Tokenizer) {
 					if(elem.Type == TokenType.Word) {
-						if(elem.Value == "{") {
+						if(elem.Value == "{")
 							depth++;
-							continue;
-						}
-						if(elem.Value == "}" && depth-- == 0)
+						else if(elem.Value == "}" && depth-- == 0)
 							break;
 					}
 					btok.Add(elem.Box());
@@ -224,27 +222,26 @@ namespace DaeForth {
 				return true;
 			});
 			
-			AddWordHandler("call-collect", compiler => {
+			AddWordHandler("call-collect", async compiler => {
 				var block = compiler.Pop();
 				compiler.CurrentWord.StmtStack.Push(new List<Ir>());
 				compiler.InjectToken(block);
 				compiler.InjectToken("call");
-				compiler.InjectToken("~~complete-call-collect");
+				await compiler.RunToHere();
+				compiler.Push(new Ir.List(compiler.CurrentWord.StmtStack.Pop()));
 			});
 
-			AddWordHandler("call-collect-with", compiler => {
+			AddWordHandler("call-collect-with", async compiler => {
 				var value = compiler.Pop();
 				var block = compiler.Pop();
 				compiler.CurrentWord.StmtStack.Push(new List<Ir>());
 				compiler.InjectToken(value);
 				compiler.InjectToken(block);
 				compiler.InjectToken("call");
-				compiler.InjectToken("~~complete-call-collect");
+				await compiler.RunToHere();
+				compiler.Push(new Ir.List(compiler.CurrentWord.StmtStack.Pop()));
 			});
 
-			AddWordHandler("~~complete-call-collect",
-				compiler => compiler.Push(new Ir.List(compiler.CurrentWord.StmtStack.Pop())));
-			
 			AddWordHandler("cif", compiler => {
 				var cond = compiler.TryPop<Ir.ConstValue<bool>>();
 				if(cond == null) throw new CompilerException("Conditional compilation requires constant expression");
@@ -269,23 +266,22 @@ namespace DaeForth {
 				}
 			});
 			
-			AddWordHandler("if", compiler => {
+			AddWordHandler("~~run-to-here", compiler =>
+				compiler.TaskStack.Pop().SetResult(null));
+			
+			AddWordHandler("if", async compiler => {
 				var cond = compiler.Pop();
 				var else_ = compiler.Pop();
 				var if_ = compiler.Pop();
 				compiler.InjectToken(if_);
 				compiler.InjectToken("call-collect");
+				await compiler.RunToHere();
+				var ifBlock = compiler.Pop();
 				compiler.InjectToken(else_);
 				compiler.InjectToken("call-collect");
-				compiler.InjectToken(cond);
-				compiler.InjectToken("~~if");
-			});
-			
-			AddWordHandler("~~if", compiler => {
-				var cond = compiler.Pop();
-				var else_ = compiler.Pop();
-				var if_ = compiler.Pop();
-				compiler.AddStmt(new Ir.If { Cond = cond, A = if_, B = else_ });
+				await compiler.RunToHere();
+				var elseBlock = compiler.Pop();
+				compiler.AddStmt(new Ir.If { Cond = cond, A = ifBlock, B = elseBlock });
 			});
 			
 			AddWordHandler("def-word", compiler => {
@@ -320,20 +316,16 @@ namespace DaeForth {
 				compiler.Words[name] = EnsureCompiled(elems);
 			});
 			
-			AddWordHandler("~~call-word", compiler => {
-				var name = compiler.Pop();
+			AddWordHandler("~~call-word", async compiler => {
+				var name = compiler.Pop<Ir.ConstValue<string>>().Value;
 				var block = compiler.Pop();
 				compiler.WordStack.Push(compiler.CurrentWord);
 				compiler.CurrentWord = new WordContext { SurrogateStack = new SurrogateStack(compiler.Stack) };
 				compiler.PushStack();
 				compiler.InjectToken(block);
 				compiler.InjectToken("call");
-				compiler.InjectToken(name);
-				compiler.InjectToken("~~complete-call-word");
-			});
-			
-			AddWordHandler("~~complete-call-word", compiler => {
-				var name = compiler.Pop<Ir.ConstValue<string>>().Value;
+				await compiler.RunToHere();
+				
 				var word = compiler.CurrentWord;
 				compiler.CurrentWord = compiler.WordStack.Pop();
 				var ns = compiler.PopStack();
@@ -358,7 +350,7 @@ namespace DaeForth {
 				else
 					compiler.Push(invoke);
 			});
-
+			
 			AddWordHandler("def-macro", compiler => {
 				var name = compiler.TryPop<Ir.ConstValue<Token>>()?.Value?.Value ??
 				           compiler.TryPop<Ir.ConstValue<string>>()?.Value;
@@ -512,21 +504,14 @@ namespace DaeForth {
 				}
 			});
 			
-			AddWordHandler("times", compiler => {
+			AddWordHandler("times", async compiler => {
 				var count = compiler.Pop();
 				var block = compiler.Pop();
 				var iter = new Ir.Identifier(compiler.TempName) { Type = typeof(int) };
 				compiler.InjectToken(block);
 				compiler.InjectToken(iter);
 				compiler.InjectToken("call-collect-with");
-				compiler.InjectToken(count);
-				compiler.InjectToken(iter);
-				compiler.InjectToken("~~times");
-			});
-			
-			AddWordHandler("~~times", compiler => {
-				var iter = compiler.Pop();
-				var count = compiler.Pop();
+				await compiler.RunToHere();
 				var body = compiler.Pop();
 				compiler.AddStmt(new Ir.For { Iterator = iter, Count = count, Body = body });
 			});

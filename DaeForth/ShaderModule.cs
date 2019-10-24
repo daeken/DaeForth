@@ -23,7 +23,7 @@ namespace DaeForth {
 				});
 			}));
 
-			var intrinsic_2 = ("min max").Split(" ");
+			var intrinsic_2 = ("min max cross mod").Split(" ");
 
 			intrinsic_2.ForEach(name => AddWordHandler(name, compiler => {
 				var b = Compiler.CanonicalizeValue(compiler.Pop());
@@ -33,6 +33,27 @@ namespace DaeForth {
 					Type = a.Type == typeof(float) ? b.Type : a.Type
 				});
 			}));
+
+			var intrinsic_3 = ("mix clamp").Split(" ");
+
+			intrinsic_3.ForEach(name => AddWordHandler(name, compiler => {
+				var c = Compiler.CanonicalizeValue(compiler.Pop());
+				var b = Compiler.CanonicalizeValue(compiler.Pop());
+				var a = Compiler.CanonicalizeValue(compiler.Pop());
+				compiler.Push(new Ir.Call {
+					Functor = new Ir.Identifier(name), Arguments = new Ir.List(new[] { a, b, c }), 
+					Type = a.Type
+				});
+			}));
+
+			AddWordHandler("dot", compiler => {
+				var b = Compiler.CanonicalizeValue(compiler.Pop());
+				var a = Compiler.CanonicalizeValue(compiler.Pop());
+				compiler.Push(new Ir.Call {
+					Functor = new Ir.Identifier("dot"), Arguments = new Ir.List(new[] { a, b }), 
+					Type = typeof(float)
+				});
+			});
 
 			AddWordHandler("length",
 				compiler => compiler.Push(new Ir.Call {

@@ -32,5 +32,7 @@ namespace DaeForth {
 				vector.X * matrix.M12 + vector.Y * matrix.M22 + vector.Z * matrix.M32 + vector.W * matrix.M42,
 				vector.X * matrix.M13 + vector.Y * matrix.M23 + vector.Z * matrix.M33 + vector.W * matrix.M43,
 				vector.X * matrix.M14 + vector.Y * matrix.M24 + vector.Z * matrix.M34 + vector.W * matrix.M44);
+
+		public static Matrix4x4 operator *(Matrix4x4 left, Matrix4x4 right) => left;
 	}
 }
