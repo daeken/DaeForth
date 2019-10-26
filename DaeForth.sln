@@ -6,6 +6,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DFC", "DFC\DFC.csproj", "{F
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FragmentToy", "FragmentToy\FragmentToy.csproj", "{CBDAE432-4FA6-49E3-BD68-6873DE95802F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarchMadness", "MarchMadness\MarchMadness.csproj", "{FBC5871C-8CF4-47D4-A279-93C8F9C6AB8C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MeshDecimator", "MeshDecimator\MeshDecimator.csproj", "{70E57E7E-839F-49B9-945D-484BA8674409}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +28,13 @@ Global
 		{CBDAE432-4FA6-49E3-BD68-6873DE95802F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CBDAE432-4FA6-49E3-BD68-6873DE95802F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CBDAE432-4FA6-49E3-BD68-6873DE95802F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FBC5871C-8CF4-47D4-A279-93C8F9C6AB8C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FBC5871C-8CF4-47D4-A279-93C8F9C6AB8C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FBC5871C-8CF4-47D4-A279-93C8F9C6AB8C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FBC5871C-8CF4-47D4-A279-93C8F9C6AB8C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{70E57E7E-839F-49B9-945D-484BA8674409}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{70E57E7E-839F-49B9-945D-484BA8674409}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{70E57E7E-839F-49B9-945D-484BA8674409}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{70E57E7E-839F-49B9-945D-484BA8674409}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

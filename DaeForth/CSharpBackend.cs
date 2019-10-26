@@ -8,12 +8,14 @@ namespace DaeForth {
 	public class CSharpBackend : Backend {
 		public override string GenerateCode(IDictionary<string, (string Qualifier, Type Type)> globals,
 			Dictionary<(string Name, Type Return, Type[] Arguments), WordContext> words) =>
+			"using DaeForth;\n" + 
+			"using static DaeForth.MathFunctions;\n" + 
 			"public class DFShader {\n" +
 			(globals.Count == 0
 				? ""
 				: string.Join('\n',
 					  globals.Select(x =>
-						  $"\tpublic {ToType(x.Value.Type)} {ToName(x.Key)};")) +
+						  $"\tpublic static {ToType(x.Value.Type)} {ToName(x.Key)};")) +
 				  "\n\n") +
 			string.Join("\n\n", words.Select(word => {
 				var body = "";
@@ -21,7 +23,7 @@ namespace DaeForth {
 					body += string.Join('\n', word.Value.Locals.Select(x => $"{ToType(x.Value)} {ToName(x.Key)};")) +
 					        "\n";
 				body += string.Join('\n', word.Value.Body.Select(Transform).Where(x => x != null));
-				return $"public {(word.Key.Return == null ? "void" : ToType(word.Key.Return))} {ToWordName(word.Key)}(" +
+				return $"public static {(word.Key.Return == null ? "void" : ToType(word.Key.Return))} {ToWordName(word.Key)}(" +
 				       string.Join(", ", word.Key.Arguments.Select((x, i) => $"{ToType(x)} arg_{i}").Reverse()) +
 				       $") {{\n{body.Indent()}\n}}";
 			})).Indent() +
@@ -43,15 +45,15 @@ namespace DaeForth {
 				Ir.ConstValue<float> fcv => FormatFloat(fcv),
 				Ir.ConstValue<bool> bcv => bcv ? "true" : "false",
 				Ir.List list =>
-				$"new {ToType(list.Type)}({string.Join(", ", list.Select(Transform) /*list.Select(x => Transform(x.CastTo(typeof(float))))*/)})",
+				$"new {ToType(list.Type)}({string.Join(", ", list.Select(Transform))})",
 				Ir.Identifier id => ToName(id.Name),
-				Ir.MemberAccess ma => $"({Transform(ma.Value)}).{ma.Member.ToUpper()}",
+				Ir.MemberAccess ma => $"({Transform(ma.Value)}).{ma.Member}",
 				Ir.If _if when _if.B is Ir.List ifList && ifList.Count == 0 =>
 				$"if({Transform(_if.Cond)}) {{\n{string.Join('\n', ((Ir.List) _if.A).Select(Transform).Where(x => x != null)).Indent()}\n}}",
 				Ir.If _if =>
 				$"if({Transform(_if.Cond)}) {{\n{string.Join('\n', ((Ir.List) _if.A).Select(Transform).Where(x => x != null)).Indent()}\n}} else {{\n{string.Join('\n', ((Ir.List) _if.B).Select(Transform).Where(x => x != null)).Indent()}\n}}",
 				Ir.For _for =>
-				$"for(int {Transform(_for.Iterator)} = 0; {Transform(_for.Iterator)} < int({Transform(_for.Count)}); ++({Transform(_for.Iterator)})) {{\n{string.Join('\n', ((Ir.List) _for.Body).Select(Transform).Where(x => x != null)).Indent()}\n}}",
+				$"for(int {Transform(_for.Iterator)} = 0; {Transform(_for.Iterator)} < (int) ({Transform(_for.Count)}); ++({Transform(_for.Iterator)})) {{\n{string.Join('\n', ((Ir.List) _for.Body).Select(Transform).Where(x => x != null)).Indent()}\n}}",
 				Ir.CallWord cw when cw.Type == null =>
 				$"{ToWordName(cw.Word)}({string.Join(", ", cw.Arguments.Select(Transform))});",
 				Ir.CallWord cw => $"{ToWordName(cw.Word)}({string.Join(", ", cw.Arguments.Select(Transform))})",

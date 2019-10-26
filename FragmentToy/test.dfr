@@ -39,7 +39,7 @@
 
 :m scale (| block factor p |) p factor / *block factor * ;
 
-:m twist (| block factor p |)
+:m twist (| block factor $p |)
     p .y factor * cos =c
     p .y factor * sin =s
     [
@@ -59,10 +59,10 @@
             { [ .08 !!] sd-box } .2 p repeat
             [
                 p 1.5 sd-sphere
-                p [ 0 1.5 0 ] - .7 sd-sphere
-            ] 1.5 smooth-union .03 onion
+                p [ 0 1.7 0 ] - .6 sd-sphere
+            ] 1.7 smooth-union .05 onion
         ] 0.001 smooth-difference
-    } 1.5 p2 [ 0 .5 0 ] + twist
+    } .8 p2 [ 0 .5 0 ] + twist
 ;
 
 : cast-ray (| ro rd |)
