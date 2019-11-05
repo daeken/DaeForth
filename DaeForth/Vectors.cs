@@ -24,6 +24,11 @@ namespace DaeForth {
 		}
 
 		public override string ToString() => $"({X}, {Y})";
+		public override int GetHashCode() => HashCode.Combine(MathF.Round(X, 4).GetHashCode(),
+			MathF.Round(Y, 4).GetHashCode());
+		public override bool Equals(object obj) =>
+			obj is Vec2 other && MathF.Abs(MathF.Round(X, 4) - MathF.Round(other.X, 4)) < 0.001f &&
+			MathF.Abs(MathF.Round(Y, 4) - MathF.Round(other.Y, 4)) < 0.001f;
 		
 		public static Vec2 operator +(Vec2 left, Vec2 right) => new Vec2(left.X + right.X, left.Y + right.Y);
 		public static Vec2 operator +(Vec2 left, float right) => new Vec2(left.X + right, left.Y + right);
@@ -106,9 +111,16 @@ namespace DaeForth {
 
 		public Vec3(Vec2 v, float z) : this(v.X, v.Y, z) {}
 		public Vec3(float x, Vec2 v) : this(x, v.X, v.Y) {}
-		
+
 		public override string ToString() => $"({X}, {Y}, {Z})";
-		
+		public override int GetHashCode() => HashCode.Combine(MathF.Round(X, 4).GetHashCode(),
+			MathF.Round(Y, 4).GetHashCode(), MathF.Round(Z, 4).GetHashCode());
+
+		public override bool Equals(object obj) =>
+			obj is Vec3 other && MathF.Abs(MathF.Round(X, 4) - MathF.Round(other.X, 4)) < 0.001f &&
+			MathF.Abs(MathF.Round(Y, 4) - MathF.Round(other.Y, 4)) < 0.001f &&
+			MathF.Abs(MathF.Round(Z, 4) - MathF.Round(other.Z, 4)) < 0.001f;
+
 		public static Vec3 operator +(Vec3 left, Vec3 right) => new Vec3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
 		public static Vec3 operator +(Vec3 left, float right) => new Vec3(left.X + right, left.Y + right, left.Z + right);
 		public static Vec3 operator +(float left, Vec3 right) => new Vec3(left + right.X, left + right.Y, left + right.Z);
@@ -290,8 +302,15 @@ namespace DaeForth {
 		
 		public Vec4(Vec3 v, float w) : this(v.X, v.Y, v.Z, w) {}
 		public Vec4(float x, Vec3 v) : this(x, v.X, v.Y, v.Z) {}
-		
+
 		public override string ToString() => $"({X}, {Y}, {Z}, {W})";
+		public override int GetHashCode() => HashCode.Combine(MathF.Round(X, 4).GetHashCode(),
+			MathF.Round(Y, 4).GetHashCode(), MathF.Round(Z, 4).GetHashCode(), MathF.Round(W, 4).GetHashCode());
+		public override bool Equals(object obj) =>
+			obj is Vec4 other && MathF.Abs(MathF.Round(X, 4) - MathF.Round(other.X, 4)) < 0.001f &&
+			MathF.Abs(MathF.Round(Y, 4) - MathF.Round(other.Y, 4)) < 0.001f &&
+			MathF.Abs(MathF.Round(Z, 4) - MathF.Round(other.Z, 4)) < 0.001f &&
+			MathF.Abs(MathF.Round(W, 4) - MathF.Round(other.W, 4)) < 0.001f;
 		
 		public static Vec4 operator +(Vec4 left, Vec4 right) => new Vec4(left.X + right.X, left.Y + right.Y, left.Z + right.Z, left.W + right.W);
 		public static Vec4 operator +(Vec4 left, float right) => new Vec4(left.X + right, left.Y + right, left.Z + right, left.W + right);

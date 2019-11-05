@@ -10,6 +10,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarchMadness", "MarchMadnes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MeshDecimator", "MeshDecimator\MeshDecimator.csproj", "{70E57E7E-839F-49B9-945D-484BA8674409}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IsoSlice", "IsoSlice\IsoSlice.csproj", "{25B1AF4A-9C35-4852-9726-E498A60EF6B8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Slicer", "Slicer\Slicer.csproj", "{7AA817D4-7F0A-42C1-A58F-07B1A6578FC6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +40,13 @@ Global
 		{70E57E7E-839F-49B9-945D-484BA8674409}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{70E57E7E-839F-49B9-945D-484BA8674409}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{70E57E7E-839F-49B9-945D-484BA8674409}.Release|Any CPU.Build.0 = Release|Any CPU
+		{25B1AF4A-9C35-4852-9726-E498A60EF6B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{25B1AF4A-9C35-4852-9726-E498A60EF6B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{25B1AF4A-9C35-4852-9726-E498A60EF6B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{25B1AF4A-9C35-4852-9726-E498A60EF6B8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7AA817D4-7F0A-42C1-A58F-07B1A6578FC6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7AA817D4-7F0A-42C1-A58F-07B1A6578FC6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7AA817D4-7F0A-42C1-A58F-07B1A6578FC6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7AA817D4-7F0A-42C1-A58F-07B1A6578FC6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

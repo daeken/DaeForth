@@ -7,9 +7,6 @@ using PrettyPrinter;
 
 namespace MarchMadness {
 	public class LayerStacking {
-		static readonly Vec3 Full = new Vec3(float.MaxValue);
-		static readonly Vec3 Empty = new Vec3(float.MinValue);
-
 		public static List<Vec3> Build(Func<Vec3, float> map, Vec3 mins, Vec3 maxs, (int X, int Y, int Z) resolution) {
 			var diff = maxs - mins;
 			var step = diff / new Vec3(resolution.X, resolution.Y, resolution.Z);

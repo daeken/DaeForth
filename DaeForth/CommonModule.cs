@@ -413,6 +413,14 @@ namespace DaeForth {
 				return null;
 			}
 			
+			AddWordHandler("reverse", compiler => {
+				var v = compiler.Pop();
+				var list = EnsureList(compiler, v);
+				if(list == null) { compiler.Push(v); return false; }
+				compiler.Push(new Ir.List(list.Reverse()));
+				return true;
+			});
+			
 			AddWordHandler("map", compiler => {
 				var block = compiler.Pop();
 				var v = compiler.Pop();

@@ -32,12 +32,14 @@ namespace MarchMadness {
 		List<Triangle> Triangles = new List<Triangle>();
 
 		MeshSimplifier(List<Vec3> verts, int? target) {
+			Console.WriteLine("Converting to indexed form");
 			ConvertToIndexed(verts);
 
 			var nmesh = new Mesh(Vertices.Select(x => new Vector3d(x.X, x.Y, x.Z)).ToArray(),
 				Triangles.Select(x => x.Triangulate()).SelectMany(x => x).ToArray());
 			nmesh.RecalculateNormals();
 			nmesh.RecalculateTangents();
+			Console.WriteLine("Decimating mesh");
 			nmesh = target == null
 				? MeshDecimation.DecimateMeshLossless(nmesh)
 				: MeshDecimation.DecimateMesh(nmesh, target.Value);

@@ -31,8 +31,8 @@
 :m union \min ;
 :m smooth-union (| list k |) list \{ k smin } list union k 0 != select ;
 
-:m difference \{ (| d1 d2 |) d1 neg d2 max } ;
-:m smooth-difference (| list k |) list \{ k sdif } list difference k 0 != select ;
+:m difference \{ (| d1 d2 |) d2 neg d1 max } ;
+:m smooth-difference (| list k |) list \{ swap k sdif } list difference k 0 != select ;
 
 :m intersection \max ;
 :m smooth-intersection (| list k |) list \{ k sint } list intersection k 0 != select ;
@@ -49,20 +49,46 @@
     ] =tmp tmp *block
 ;
 
+:m twist-func (| block factor $p |)
+    p *factor =f
+    f cos =c
+    f sin =s
+    [
+        p .x c * p .z s * -
+        p .y
+        p .x s * p .z c * +
+    ] =tmp tmp *block
+;
+
 :m repeat (| block c p |) p .5 c * + c mod .5 c * - *block ;
 
 :m onion (| sdf thickness |) sdf abs thickness - ;
 
-: map-scene (| p2 |)
-    { (| $p |)
+(( : map-scene (| p2 |)
+    { (| p |)
         [
-            { [ .08 !!] sd-box } .2 p repeat
             [
-                p 1.5 sd-sphere
-                p [ 0 1.7 0 ] - .6 sd-sphere
-            ] 1.7 smooth-union .05 onion
-        ] 0.001 smooth-difference
-    } .8 p2 [ 0 .5 0 ] + twist
+                [ [ -1 -1 ] [ -1 1 ] [ 1 -1 ] [ 1 1 ] ]
+                /{ p [ 1.9 _ .x * 0 1.9 _ .y * ] + [ .1 4 .1 ] sd-box } union
+                [
+                    p [ 2 4 2 ] sd-box
+                    [ { .1 sd-sphere (( [ .1 !!] sd-box )) } .4 p [ 0 .2 0 ] + repeat v .07 onion ] intersection
+                ] difference
+            ] union
+            p [ 0 .2 0 ] - [ 1.8 4 1.8 ] sd-box
+        ] difference
+    } 15 radians p2 twist
+; ))
+
+: map-scene (| p |)
+    [
+        [
+            p 2 sd-sphere .1 onion
+            p [ 0 2 0 ] - 1.3 sd-sphere
+        ] .1 smooth-difference
+        p [ 2500 1 1 ] / .5 sd-sphere
+        p [ 0 2.2 0 ] + [ 2 .25 2 ] sd-box
+    ] 0 smooth-difference
 ;
 
 : cast-ray (| ro rd |)

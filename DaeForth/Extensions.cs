@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace DaeForth {
@@ -34,5 +35,8 @@ namespace DaeForth {
 				UnaryOp.Minus => "-",
 				_ => throw new NotImplementedException()
 			};
+
+		public static IEnumerable<(int Index, T Value)> Enumerate<T>(this IEnumerable<T> enumerable) =>
+			enumerable.Select((x, i) => (i, x));
 	}
 }
