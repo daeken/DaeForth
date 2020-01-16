@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Be.IO;
 using Force.Crc32;
 using Ionic.Zlib;
 
@@ -52,20 +51,20 @@ namespace IsoSlice {
 
 	public static class Png {
 		public static void Encode(Image image, Stream stream) {
-			var bw = new BeBinaryWriter(stream, Encoding.Default, leaveOpen: true);
+			var bw = new BinaryWriter(stream, Encoding.Default, leaveOpen: true);
 			bw.Write(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
 
 			void WriteChunk(string type, byte[] data) {
 				Debug.Assert(type.Length == 4);
-				bw.Write(data.Length);
+				bw.WriteBe(data.Length);
 				var td = Encoding.ASCII.GetBytes(type).Concat(data).ToArray();
 				bw.Write(td);
-				bw.Write(Crc32Algorithm.Compute(td));
+				bw.WriteBe(Crc32Algorithm.Compute(td));
 			}
 
-			void Chunk(string type, Action<BeBinaryWriter> func) {
+			void Chunk(string type, Action<BinaryWriter> func) {
 				using(var ms = new MemoryStream())
-					using(var sbw = new BeBinaryWriter(ms)) {
+					using(var sbw = new BinaryWriter(ms)) {
 						func(sbw);
 						sbw.Flush();
 						WriteChunk(type, ms.ToArray());
@@ -73,8 +72,8 @@ namespace IsoSlice {
 			}
 			
 			Chunk("IHDR", w => {
-				w.Write(image.Size.Width);
-				w.Write(image.Size.Height);
+				w.WriteBe(image.Size.Width);
+				w.WriteBe(image.Size.Height);
 				w.Write((byte) 8);
 				switch(image.ColorMode) {
 					case ColorMode.Greyscale: w.Write((byte) 0); break;

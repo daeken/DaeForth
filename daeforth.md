@@ -311,11 +311,11 @@ Matches that happen entirely at compile-time may take any types and return anyth
 
 ### Match constraints
 
-If the final element of the match list is a block, it will be used as a constraint.  It gets the current value as a parameter (which you are not required to consume) and will get any variable bindings from the match.
+If the final element of the match list is a block starting with `when`, it will be used as a constraint.  It gets the current value as a parameter (which you are not required to consume) and will get any variable bindings from the match.
 
 	[
-		[ () { 5 % 0 == } ] { 5 } (( Matches any element that is evenly divisible by 5 ))
-		[ [ &a &b ] { a b > } ] { 1 } (( Matches any 2-array where the first element is greater than the second ))
+		[ () { when 5 % 0 == } ] { 5 } (( Matches any element that is evenly divisible by 5 ))
+		[ [ &a &b ] { when a b > } ] { 1 } (( Matches any 2-array where the first element is greater than the second ))
 	] _ match
 
 ### List operations

@@ -23,7 +23,7 @@ namespace DaeForth {
 				});
 			}));
 
-			var intrinsic_2 = ("min max cross mod").Split(" ");
+			var intrinsic_2 = ("min max cross mod pow").Split(" ");
 
 			intrinsic_2.ForEach(name => AddWordHandler(name, compiler => {
 				var b = Compiler.CanonicalizeValue(compiler.Pop());
@@ -34,7 +34,7 @@ namespace DaeForth {
 				});
 			}));
 
-			var intrinsic_3 = ("mix clamp").Split(" ");
+			var intrinsic_3 = ("mix clamp smoothstep").Split(" ");
 
 			intrinsic_3.ForEach(name => AddWordHandler(name, compiler => {
 				var c = Compiler.CanonicalizeValue(compiler.Pop());
@@ -61,7 +61,7 @@ namespace DaeForth {
 					Type = typeof(float)
 				}));
 			
-			var CatchFloatRegex = new Regex(@"\.[0-9]+$");
+			var CatchFloatRegex = new Regex(@"[0-9]+$");
 
 			AddPrefixHandler(".", (compiler, token) => {
 				Type GenVecType(int size) =>

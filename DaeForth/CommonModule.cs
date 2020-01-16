@@ -20,7 +20,7 @@ namespace DaeForth {
 				var btok = new Ir.List();
 				var depth = 0;
 				foreach(var elem in compiler.Tokenizer) {
-					if(elem.Type == TokenType.Word) {
+					if(elem.Type == TokenType.Word && elem.Prefixes != null) {
 						if(elem.Value == "{")
 							depth++;
 						else if(elem.Value == "}" && depth-- == 0)
@@ -38,7 +38,9 @@ namespace DaeForth {
 				if(!(pblock is Ir.List ilist)) throw new NotSupportedException();
 				
 				var index = ++macroIndex;
-				var list = ilist.Select(x => ((Ir.ConstValue<Token>) x).Value).ToList();
+				var list = ilist.Select(x =>
+					x is Ir.ConstValue<Token> cvt ? cvt.Value :
+					x is Ir.ConstValue<ValueToken> cvvt ? cvvt.Value : throw new NotImplementedException()).ToList();
 				var args = new List<string>();
 				var rets = new List<string>();
 				if(list.Count > 2 && list[0].Type == TokenType.Word && list[0].RawValue == "(|") {
@@ -84,9 +86,11 @@ namespace DaeForth {
 				var rename = args.Where(x => x != null).Select(x => (x, $"__macro_{index}_{x}")).ToDictionary();
 
 				if(rename.Count != 0)
-					list = list.Select(x => x.Type == TokenType.Word && rename.ContainsKey(x.Value)
-						? new Token(x.StartLocation, x.EndLocation, x.Type, x.Prefixes, rename[x.Value], x.RawValue)
-						: x).ToList();
+					list = list.Select(x =>
+						x.Type == TokenType.Word && x.Prefixes != null && rename.ContainsKey(x.Value)
+							? new Token(x.StartLocation, x.EndLocation, x.Type, x.Prefixes, rename[x.Value],
+								string.Join("", x.Prefixes) + rename[x.Value])
+							: x).ToList();
 
 				list = args.Where(x => x != null).Select(x => {
 					var pfx = storing.Contains(x) ? "=>$" : "=>";
@@ -108,6 +112,15 @@ namespace DaeForth {
 				compiler.InjectToken("map");
 			});
 			
+			AddPrefixHandler("//", (compiler, token) => {
+				if(token.Value == "{")
+					compiler.Push(ParseBlock(compiler));
+				else
+					compiler.InjectToken(token.Box());
+				compiler.InjectToken("map");
+				compiler.InjectToken("drop");
+			});
+			
 			AddPrefixHandler("\\", (compiler, token) => {
 				if(token.Value == "{")
 					compiler.Push(ParseBlock(compiler));
@@ -117,24 +130,69 @@ namespace DaeForth {
 			});
 			
 			AddPrefixHandler("~", (compiler, token) => {
+				if(token.RawValue.StartsWith("~")) return false;
 				var cond = compiler.TryPop<Ir.ConstValue<bool>>();
 				if(cond == null) throw new CompilerException("Conditional compilation requires constant expression");
 				var block =
 					token.Value == "{"
 						? ParseBlock(compiler)
 						: token.Box();
-				if(!cond.Value) return;
+				if(!cond.Value) return true;
 				compiler.InjectToken(block);
 				compiler.InjectToken("call");
+				return true;
 			});
 			
-			AddPrefixHandler("=>", (compiler, token) => compiler.MacroLocals[token.Value] = compiler.Pop());
+			AddPrefixHandler("=>", (compiler, token) => {
+				if(token.Value == "[")
+					return false;
+				compiler.MacroLocals[token.Value] = compiler.Pop();
+				return true;
+			});
 			AddPrefixHandler("=>$",
 				(compiler, token) => compiler.MacroLocals[token.Value] = compiler.EnsureCheap(compiler.Pop()));
-			AddPrefixHandler("=>[", (compiler, token) => throw new NotImplementedException());
-			AddPrefixHandler("=[", (compiler, token) => throw new NotImplementedException());
+			AddWordHandler("=[", compiler => {
+				var v = compiler.Pop();
+				var list = EnsureList(compiler, v);
+				if(list == null) { compiler.Push(v); return false; }
+
+				var names = new List<string>();
+				while(true) {
+					var token = compiler.ConsumeToken();
+					if(token.RawValue == "]")
+						break;
+					names.Add(token.RawValue);
+				}
+				
+				if(names.Count != list.Count)
+					throw new Exception($"Mismatch in list assignment: expected {names.Count} elements but got {list.Count}");
+				
+				list.Zip(names).ForEach(x => compiler.AssignVariable(x.Second, x.First));
+
+				return true;
+			});
+			AddWordHandler("=>[", compiler => {
+				var v = compiler.Pop();
+				var list = EnsureList(compiler, v);
+				if(list == null) { compiler.Push(v); return false; }
+
+				var names = new List<string>();
+				while(true) {
+					var token = compiler.ConsumeToken();
+					if(token.RawValue == "]")
+						break;
+					names.Add(token.RawValue);
+				}
+				
+				if(names.Count != list.Count)
+					throw new Exception($"Mismatch in list assignment: expected {names.Count} elements but got {list.Count}");
+				
+				list.Zip(names).ForEach(x => compiler.MacroLocals[x.Second] = x.First);
+
+				return true;
+			});
 			AddPrefixHandler("=", (compiler, token) => {
-				if(token.Value == "=") return false; // ==
+				if(token.Value == "=" || token.Value == "[") return false; // == or =[
 
 				var name = token.Value;
 				var value = compiler.Pop();
@@ -175,6 +233,12 @@ namespace DaeForth {
 				compiler.Push(typeof(OutputType<>).MakeGenericType(type).Box());
 			});
 
+			AddWordHandler("input-variable", compiler => {
+				var type = compiler.TryPop<Ir.ConstValue<Type>>();
+				if(type == null) throw new CompilerException("Input must be applied to a type");
+				compiler.Push(typeof(InputType<>).MakeGenericType(type).Box());
+			});
+
 			AddWordHandler("global", compiler => {
 				var type = compiler.TryPop<Ir.ConstValue<Type>>();
 				if(type == null) throw new CompilerException("Global must be applied to a type");
@@ -206,6 +270,8 @@ namespace DaeForth {
 				foreach(var val in block) {
 					if(val is Ir.ConstValue<Token> tok)
 						compiler.InjectToken(tok.Value);
+					else if(val is Ir.ConstValue<ValueToken> vtok)
+						compiler.InjectToken(vtok.Value);
 					else
 						Debug.Fail("Non-token in block");
 				}
@@ -219,6 +285,14 @@ namespace DaeForth {
 				compiler.InjectToken("~~push-macro-scope");
 				compiler.InjectToken(tok.Value);
 				compiler.InjectToken("~~pop-macro-scope");
+				return true;
+			});
+			
+			// Caller for a token on the stack
+			AddWordHandler("call-bare", compiler => {
+				var tok = compiler.TryPop<Ir.ConstValue<Token>>();
+				if(tok == null) return false;
+				compiler.InjectToken(tok.Value);
 				return true;
 			});
 			
@@ -359,6 +433,14 @@ namespace DaeForth {
 				compiler.Macros[name] = EnsureCompiled(compiler.Pop());
 			});
 			
+			AddWordHandler("def-prefix", compiler => {
+				var name = compiler.TryPop<Ir.ConstValue<Token>>()?.Value?.Value ??
+				           compiler.TryPop<Ir.ConstValue<string>>()?.Value;
+				if(name == null) throw new CompilerException("Macro name must be quoted identifier or string");
+				if(compiler.Prefixes.ContainsKey(name)) compiler.Warn($"Redefining prefix '{name}'");
+				compiler.Prefixes[name] = EnsureCompiled(compiler.Pop());
+			});
+			
 			AddWordHandler(":m", compiler => {
 				var name = compiler.ConsumeToken().RawValue;
 				var elems = new Ir.List();
@@ -381,6 +463,30 @@ namespace DaeForth {
 				
 				if(compiler.Macros.ContainsKey(name)) compiler.Warn($"Redefining macro '{name}'");
 				compiler.Macros[name] = EnsureCompiled(elems);
+			});
+			
+			AddWordHandler(":p", compiler => {
+				var name = compiler.ConsumeToken().RawValue;
+				var elems = new Ir.List();
+				foreach(var elem in compiler.Tokenizer) {
+					if(elem.Type == TokenType.Word && elem.RawValue == "((") {
+						var depth = 0;
+						foreach(var selem in compiler.Tokenizer) {
+							if(selem.Type == TokenType.String)
+								continue;
+							if(selem.RawValue == "((")
+								depth++;
+							else if(selem.RawValue == "))" && depth-- == 0)
+								break;
+						}
+					} else if(elem.Type == TokenType.Word && elem.RawValue == ";")
+						break;
+					else
+						elems.Add(elem.Box());
+				}
+				
+				if(compiler.Prefixes.ContainsKey(name)) compiler.Warn($"Redefining prefix '{name}'");
+				compiler.Prefixes[name] = EnsureCompiled(elems);
 			});
 			
 			AddWordHandler("swap", compiler => {
@@ -427,7 +533,7 @@ namespace DaeForth {
 				var list = EnsureList(compiler, v);
 				if(list == null) { compiler.Push(block, v); return false; }
 
-				if(list.Count <= 1) {
+				if(list.Count == 0) {
 					compiler.Push(list);
 					return true;
 				}
@@ -551,6 +657,86 @@ namespace DaeForth {
 				var cond = compiler.TryPop<Ir.ConstValue<bool>>();
 				if(cond == null) throw new CompilerException("Assertion on non-const or non-bool value");
 				if(!cond.Value) throw new CompilerException("Assertion failed");
+			});
+			
+			AddWordHandler("concat", compiler => {
+				var tokenB = compiler.TryPop<Ir.ConstValue<Token>>();
+				if(tokenB == null) return false;
+				var tokenA = compiler.TryPop<Ir.ConstValue<Token>>();
+				if(tokenA == null) {
+					compiler.Push(tokenB);
+					return false;
+				}
+				
+				compiler.PushValue(Token.Generate(tokenA.Value.RawValue + tokenB.Value.RawValue));
+
+				return true;
+			});
+			
+			AddWordHandler("bind-to-scope", compiler => {
+				var btok = (Ir) compiler.TryPop<Ir.List>() ?? compiler.TryPop<Ir.Block>();
+				if(btok == null) return false;
+				var block = EnsureCompiled(btok).Body;
+				var toInject = new List<Ir>();
+				var injected = new HashSet<string>();
+				foreach(var elem in block)
+					if(elem is Ir.ConstValue<Token> token &&
+					   !injected.Contains(token.Value.Value) &&
+					   compiler.MacroLocals.TryGetValue(token.Value.Value, out var value)) {
+						injected.Add(token.Value.Value);
+						toInject.Add(new ValueToken(value).Box());
+						toInject.Add(Token.Generate("=>" + token.Value.Value).Box());
+					}
+				compiler.Push(new Ir.List(block.Take(1).Concat((IEnumerable<Ir>) toInject).Concat(block.Skip(1))));
+				return true;
+			});
+			
+			AddWordHandler("~~nop", _ => {});
+			AddPrefixHandler(",", (_, __) => false);
+			
+			AddPrefixHandler("`", (compiler, pftoken) => {
+				if(pftoken.RawValue != "{")
+					throw new NotSupportedException("Quasiquote blocks must begin with `{");
+				compiler.Push(new Ir.List(((Ir.List) ParseBlock(compiler, compile: false)).Select(elem => {
+					if(!(elem is Ir.ConstValue<Token> token) || token.Value.RawValue == null ||
+					   !token.Value.RawValue.Contains(",")) return elem;
+					if(token.Value.RawValue.Contains(",,"))
+						return Token.Generate(token.Value.RawValue.Replace(",,", ",")).Box();
+					var pieces = token.Value.RawValue.Split(',');
+					if(pieces.Length != 2 || pieces[1].Length == 0) return elem;
+					var value = compiler.MacroLocals[pieces[1]];
+					if(value is Ir.ConstValue<Token> cvt) {
+						return Token.Generate(pieces[0] + cvt.Value.RawValue).Box();
+					}
+					if(pieces[0].Length == 0)
+						return new ValueToken(value).Box();
+					throw new NotSupportedException(
+						"Attempted to use non-token value in pseudoquote token with prefixes");
+				})));
+			});
+			
+			AddWordHandler("is-block?", compiler => {
+				var value = compiler.Pop();
+				try {
+					compiler.PushValue(EnsureCompiled(value) != null);
+				} catch(Exception) {
+					compiler.PushValue(false);
+				}
+			});
+			
+			AddWordHandler("zip", compiler => {
+				var v = compiler.Pop();
+				var listB = EnsureList(compiler, v);
+				if(listB == null) { compiler.Push(v); return false; }
+				v = compiler.Pop();
+				var listA = EnsureList(compiler, v);
+				if(listA == null) { compiler.Push(listB, v); return false; }
+				
+				if(listA.Count != listB.Count)
+					throw new NotSupportedException($"Zip requires two sequences of equal length; got {listA.Count} and {listB.Count}");
+				
+				compiler.Push(new Ir.List(listA.Zip(listB).Select(x => new Ir.List(new[] { x.First, x.Second }))));
+				return true;
 			});
 		}
 	}

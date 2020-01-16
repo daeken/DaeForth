@@ -44,6 +44,7 @@ namespace DaeForth {
 	class UniformType<T> { }
 	class VaryingType<T> { }
 	class OutputType<T> { }
+	class InputType<T> { }
 	class GlobalType<T> { }
 
 	public sealed class Unit {
@@ -110,11 +111,12 @@ namespace DaeForth {
 	}
 	
 	public class Compiler {
+		public static Compiler Instance;
 		public Tokenizer Tokenizer;
 		readonly List<Func<Compiler, Token, bool>> StringHandlers = new List<Func<Compiler, Token, bool>>();
 		readonly List<Func<Compiler, string, bool>> WordHandlers = new List<Func<Compiler, string, bool>>();
 
-		readonly List<(string Prefix, Func<Compiler, string, Token, bool> Handler)> PrefixHandlers =
+		public readonly List<(string Prefix, Func<Compiler, string, Token, bool> Handler)> PrefixHandlers =
 			new List<(string Prefix, Func<Compiler, string, Token, bool> Handler)>();
 
 		public Stack<Ir> Stack = new Stack<Ir>();
@@ -123,6 +125,7 @@ namespace DaeForth {
 		public MacroLocals MacroLocals = new MacroLocals();
 		
 		public readonly Dictionary<string, Ir> Macros = new Dictionary<string, Ir>();
+		public readonly Dictionary<string, Ir> Prefixes = new Dictionary<string, Ir>();
 		public readonly Dictionary<string, Ir> Words = new Dictionary<string, Ir>();
 
 		public readonly Dictionary<string, (string Qualifier, Type Type)> Globals =
@@ -142,13 +145,19 @@ namespace DaeForth {
 
 		public TextWriter ErrorWriter = Console.Error;
 
+		Exception BailingOut;
+
 		public Compiler() {
+			Instance = this;
 			Add(new CommonModule());
 			Add(new ShaderModule());
 			Add(new BinaryOpModule());
 			Add(new UnaryOpModule());
 			Add(new MatchModule());
 		}
+
+		public void Bailout(Exception exception) =>
+			BailingOut = exception;
 		
 		public void Add(DaeforthModule module) {
 			StringHandlers.AddRange(module.StringHandlers);
@@ -175,16 +184,22 @@ namespace DaeForth {
 				};
 			
 			Tokenizer = new Tokenizer(filename, source);
-			Tokenizer.Prefixes.AddRange(PrefixHandlers.Select(x => x.Prefix));
-
+			
 			CurrentWord = MainContext;
 
 			try {
 				foreach(var _token in Tokenizer) {
+					if(BailingOut != null) throw BailingOut;
 					var token = CurrentToken = _token;
 					if(token.Prefixes.Count != 0) {
 						var pftoken = token.PopPrefix();
 						var pfx = token.Prefixes.First();
+						if(Prefixes.TryGetValue(pfx, out var macroBody)) {
+							InjectToken(pftoken.Box());
+							InjectToken(macroBody);
+							InjectToken("call");
+							continue;
+						}
 						var ph = PrefixHandlers.FirstOrDefault(x => x.Prefix == pfx);
 						if(ph.Handler != null && ph.Handler(this, pfx, pftoken))
 							continue;
@@ -251,7 +266,9 @@ namespace DaeForth {
 						}
 					}
 				}
-				
+
+				if(BailingOut != null) throw BailingOut;
+
 				if(MainContext != CurrentWord) throw new CompilerException("Ended in word other than main");
 				if(Stack.Count != 0) throw new CompilerException("Main ended with values on the stack");
 
@@ -283,7 +300,7 @@ namespace DaeForth {
 
 			var name = TempName;
 			AssignVariable(name, value);
-			return new Ir.Identifier(name) { Type = value.Type };
+			return new Ir.Identifier(name) { Type = CanonicalizeValue(value).Type };
 		}
 
 		public void AssignVariable(string name, Ir value) {
@@ -295,6 +312,7 @@ namespace DaeForth {
 				if(gtd == typeof(UniformType<>)) qualifier = "uniform";
 				else if(gtd == typeof(VaryingType<>)) qualifier = "varying";
 				else if(gtd == typeof(OutputType<>)) qualifier = "out";
+				else if(gtd == typeof(InputType<>)) qualifier = "in";
 				else if(gtd == typeof(GlobalType<>)) qualifier = null;
 				else throw new CompilerException($"Unknown generic type for variable assignment {type}");
 				type = type.GetGenericArguments()[0];

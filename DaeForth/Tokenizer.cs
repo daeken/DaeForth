@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using PrettyPrinter;
 using static System.Console;
 
 namespace DaeForth {
@@ -24,28 +25,78 @@ namespace DaeForth {
 	public class Token {
 		public readonly Location StartLocation, EndLocation;
 		public readonly TokenType Type;
-		public readonly List<string> Prefixes;
-		public readonly string Value, RawValue;
+		List<string> _Prefixes;
+		public List<string> Prefixes => _Prefixes ??= FindPrefixes();
+		public string Value, RawValue;
 
 		public Token(Location start, Location end, TokenType type, List<string> prefixes, string value, string rawValue = null) {
 			StartLocation = start;
 			EndLocation = end;
 			Type = type;
-			Prefixes = prefixes ?? new List<string>();
+			_Prefixes = prefixes;
 			Value = value;
 			RawValue = rawValue ?? value;
 		}
 
+		List<string> FindPrefixes() {
+			var prefixes = new List<string>();
+			var i = 0;
+			if(RawValue == null) return prefixes;
+			var allPrefixes = Compiler.Instance.PrefixHandlers.Select(x => x.Prefix)
+				.Concat(Compiler.Instance.Prefixes.Keys).OrderByDescending(x => x.Length)
+				.ToList();
+			while(i < RawValue.Length) {
+				var found = false;
+				foreach(var pfx in allPrefixes) {
+					if(i + pfx.Length >= RawValue.Length || RawValue.Substring(i, pfx.Length) != pfx) continue;
+					prefixes.Add(pfx);
+					found = true;
+					i += pfx.Length;
+					break;
+				}
+				if(!found)
+					break;
+			}
+
+			if(prefixes.Count > 0 && i == RawValue.Length) {
+				i -= prefixes.Last().Length;
+				prefixes = prefixes.Take(prefixes.Count - 1).ToList();
+			}
+
+			if(i != 0) Value = RawValue.Substring(i);
+
+			return prefixes;
+		}
+
 		public Token PopPrefix() =>
-			new Token(StartLocation, EndLocation, Type, Prefixes.Skip(1).ToList(), Value, RawValue);
+			new Token(StartLocation, EndLocation, Type, Prefixes.Skip(1).ToList(), Value,
+				RawValue.Substring(Prefixes[0].Length));
+
+		public Token PrependPrefix(string prefix) =>
+			new Token(StartLocation, EndLocation, Type, new[] { prefix }.Concat(Prefixes).ToList(), Value,
+				prefix + RawValue);
 		
 		public Token BakePrefixes(List<string> prefixes) =>
-			new Token(StartLocation, EndLocation, Type, null, string.Join("", prefixes) + Value, RawValue);
+			new Token(StartLocation, EndLocation, Type, new List<string>(), string.Join("", prefixes) + Value, RawValue);
 		
 		public static Token Generate(string token) =>
 			new Token(Location.Generated, Location.Generated, TokenType.Word, null, token, token);
 
-		public override string ToString() => $"'{RawValue}'{(Prefixes.Count != 0 ? $" [ {string.Join(" ", Prefixes)} ]" : "")} @ {StartLocation} - {EndLocation}";
+		public override string ToString() => $"'{Value}' == '{RawValue}'{(Prefixes.Count != 0 ? $" [ {string.Join(" ", Prefixes)} ]" : "")} @ {StartLocation} - {EndLocation}";
+
+		public override bool Equals(object obj) {
+			if(obj is Token otoken) {
+				WriteLine($"Token equality... ? '{RawValue}' '{otoken.RawValue}'");
+				return otoken.RawValue == RawValue;
+			}
+
+			return false;
+		}
+
+		public static bool operator ==(Token a, Token b) => a.RawValue == b.RawValue;
+		public static bool operator !=(Token a, Token b) => a.RawValue != b.RawValue;
+
+		public override int GetHashCode() => RawValue.GetHashCode();
 	}
 
 	public class ValueToken : Token {
@@ -61,7 +112,6 @@ namespace DaeForth {
 		readonly string Filename, Code;
 		
 		readonly List<(int Offset, int Line)> LineStarts;
-		public readonly List<string> Prefixes = new List<string>();
 
 		public Queue<Token> Injected = new Queue<Token>();
 		public readonly Stack<Queue<Token>> AllInjected = new Stack<Queue<Token>>();
@@ -98,7 +148,6 @@ namespace DaeForth {
 			}
 			
 			var i = 0;
-			var ps = 0;
 			while(i < Code.Length) {
 				while(true) {
 					if(AllInjected.Count == 0) break;
@@ -116,30 +165,7 @@ namespace DaeForth {
 					continue;
 				}
 
-				if(ps != Prefixes.Count) {
-					Prefixes.Sort((a, b) => b.Length.CompareTo(a.Length));
-					ps = Prefixes.Count;
-				}
-
 				var start = GetLocation(i);
-
-				var prefixes = new List<string>();
-				while(i < Code.Length) {
-					var found = false;
-					foreach(var pfx in Prefixes) {
-						if(i + pfx.Length >= Code.Length || Code.Substring(i, pfx.Length) != pfx) continue;
-						prefixes.Add(pfx);
-						found = true;
-						i += pfx.Length;
-					}
-					if(!found)
-						break;
-				}
-
-				if(prefixes.Count > 0 && (i == Code.Length || IsWhitespace(Code[i]))) {
-					i -= prefixes.Last().Length;
-					prefixes = prefixes.Take(prefixes.Count - 1).ToList();
-				}
 
 				if(Code[i] == '"') {
 					throw new NotImplementedException();
@@ -147,7 +173,7 @@ namespace DaeForth {
 					var tv = "";
 					while(i < Code.Length && !IsWhitespace(Code[i]))
 						tv += Code[i++];
-					yield return new Token(start, GetLocation(i - 1), TokenType.Word, prefixes, tv, string.Join("", prefixes) + tv);
+					yield return new Token(start, GetLocation(i - 1), TokenType.Word, null, tv, tv);
 				}
 				
 				HandleInjected();

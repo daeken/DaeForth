@@ -9,7 +9,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Be.IO" Version="1.0.0" />
       <PackageReference Include="Crc32.NET" Version="1.2.0" />
       <PackageReference Include="DotNetZip" Version="1.13.4" />
       <PackageReference Include="morelinq" Version="2.10.0" />

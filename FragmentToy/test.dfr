@@ -1,16 +1,51 @@
-@vec2 varying =position
-@vec2 uniform =resolution
-@vec3 uniform =cameraPos
+true =>fragment-toy
+
+[ 0 4.4 4.3 ] 1.5 / =cameraPos
+
+{
+    @vec2 uniform =resolution
+    @vec2 varying =position
+    (( @vec3 uniform =cameraPos ))
+    position 2 / 1 - =real-position
+} {
+    @vec2 input-variable =vPosition
+    vPosition =real-position
+    [ 1 2970 4200 / ] =resolution
+    @vec4 output-variable =normalDepth
+} fragment-toy cif
 
 :m ->fragColor =$gl_FragColor ;
 
+{ + - * / } //{ (| operator |)
+    { = => } //{ (| assignment |)
+            `{ (| value variable |)
+                        *variable
+                        value
+                    ,operator
+                        &,assignment
+                        variable
+                    concat
+                call
+            }
+            operator assignment concat
+        def-prefix
+    }
+}
+:p min= (| variable |) *variable min &= variable concat call ;
+:p max= (| variable |) *variable max &= variable concat call ;
+
 :m when (| block cond |) block { } cond if ;
+:m cwhen (| block cond |) cond ~*block ;
 
 :m sd-sphere (| p s |) p length s - ;
 
 : sd-box (| p b |)
     p abs b - =d
     d \max 0 min d 0 max length +
+;
+
+: sd-plane (| p n |)
+    n .w.xyz p dot +
 ;
 
 : smin (| a b k |)
@@ -29,6 +64,7 @@
 ;
 
 :m union \min ;
+:m mat-union \{ (| $a $b |) a b a .x b .x < select } ;
 :m smooth-union (| list k |) list \{ k smin } list union k 0 != select ;
 
 :m difference \{ (| d1 d2 |) d2 neg d1 max } ;
@@ -38,16 +74,6 @@
 :m smooth-intersection (| list k |) list \{ k sint } list intersection k 0 != select ;
 
 :m scale (| block factor p |) p factor / *block factor * ;
-
-:m twist (| block factor $p |)
-    p .y factor * cos =c
-    p .y factor * sin =s
-    [
-        p .x c * p .z s * -
-        p .y
-        p .x s * p .z c * +
-    ] =tmp tmp *block
-;
 
 :m twist-func (| block factor $p |)
     p *factor =f
@@ -64,56 +90,195 @@
 
 :m onion (| sdf thickness |) sdf abs thickness - ;
 
-(( : map-scene (| p2 |)
-    { (| p |)
-        [
-            [
-                [ [ -1 -1 ] [ -1 1 ] [ 1 -1 ] [ 1 1 ] ]
-                /{ p [ 1.9 _ .x * 0 1.9 _ .y * ] + [ .1 4 .1 ] sd-box } union
-                [
-                    p [ 2 4 2 ] sd-box
-                    [ { .1 sd-sphere (( [ .1 !!] sd-box )) } .4 p [ 0 .2 0 ] + repeat v .07 onion ] intersection
-                ] difference
-            ] union
-            p [ 0 .2 0 ] - [ 1.8 4 1.8 ] sd-box
-        ] difference
-    } 15 radians p2 twist
-; ))
+:m store !drop ;
 
-: map-scene (| p |)
+:m apply (| funcs value |) funcs /{ value *_ } ;
+
+:m rotate (| p axis angle |)
+        { cos sin }
+            &*angle
+            &angle
+            angle is-block?
+        cif
+    apply =[ c s ]
+    &nop !=>selector =>inverse
+    { &.yzx =>selector &.zxy =>inverse }
+    {
+        { &.xzy !=>selector =>inverse }
+        { &.xyz !=>selector =>inverse } axis &.y == cif
+    } axis &.x == cif
+    p selector call =>$tp
     [
+        tp .x c * tp .y s * -
+        tp .x s * tp .y c * +
+        tp .z
+    ] store inverse call
+;
+
+:m rotate-x (| p angle |) p &.x angle rotate ;
+:m rotate-y (| p angle |) p &.y angle rotate ;
+:m rotate-z (| p angle |) p &.z angle rotate ;
+
+:m multi-rotate (| p axes angles |)
+        [ p { .x .y .z } *axes ] flatten
+        [ 0 angles ] flatten
+    zip \{ (| $cp aa |) aa =>[ axis angle ] cp axis angle rotate }
+;
+
+:m scoped (| block p |) p *block ;
+
+:m twist (| block factor $p axis |)
+        block
+            p
+            axis
+                    { p *factor }
+                    factor
+                factor is-block?
+            cif
+        rotate
+    scoped
+;
+
+: map-scene (| p' |)
+    [
+        [ p' [ [ 0 1 -2.2 ] normalize 3 ] sd-plane 0 ]
         [
-            p 2 sd-sphere .1 onion
-            p [ 0 2 0 ] - 1.3 sd-sphere
-        ] .1 smooth-difference
-        p [ 2500 1 1 ] / .5 sd-sphere
-        p [ 0 2.2 0 ] + [ 2 .25 2 ] sd-box
-    ] 0 smooth-difference
+            { (| p |)
+                [
+                    p 1 sd-box
+                    p 1.3 sd-sphere
+                ] difference
+            }
+            { .y 2 / .6 + }
+            p' [ 0 -3.3 0 ] - &.xyz [ .5 .2 1.0 ] multi-rotate
+            &.y
+        twist 1 ]
+    ] mat-union
+;
+
+: diffuse-mat (| mat |)
+    [ 1.7 -1.0 ] [ .03 .035 ] mat 0 == select
 ;
 
 : cast-ray (| ro rd |)
-    20 =>tmax
+    200 =>tmax
     .01 =t
-
+    -1 =mat
+    
     { drop
         0.0004 t * =>precis
         rd t * ro + map-scene =res
-        t res .5 * + =t
-        &break res precis < t tmax > or when
-    } 128 times
+        res .x .5 * +=t
+        res .y =mat
+        &break res .x precis < t tmax > or when
+    } 256 times
     
-    t 100000 t tmax <= select
+    [ t 100000 t tmax <= select mat ]
 ;
+
+: cast-shadow-ray (| ro rd w |)
+    .01 =>min-t
+    10 =>max-t
+    1 =s
+    min-t =t
+    
+    { drop
+        rd t * ro + map-scene .x =res
+        .5 res * w t * / .5 + min=s
+        res .25 * +=t
+        &break s 0 < t max-t > or when
+    } 256 times
+    
+    0 max=s
+    s s * 3 2 s * - *
+;
+
 
 : calc-normal (| pos |)
     [ 1 -1 ] 0.0005 * =>e
-    { .xyy .yyx .yxy .xxx } /{ e *_ !=>ce pos ce + map-scene * } \+ normalize
+    { .xyy .yyx .yxy .xxx } /{ e *_ !=>ce pos ce + map-scene .x * } \+ normalize
+;
+
+: calc-first-derivative (| p |)
+    0.0005 =h
+    [
+            p [ h 0 0 ] + map-scene .x
+            p [ h 0 0 ] - map-scene .x
+        -
+            p [ 0 h 0 ] + map-scene .x
+            p [ 0 h 0 ] - map-scene .x
+        -
+            p [ 0 0 h ] + map-scene .x
+            p [ 0 0 h ] - map-scene .x
+        -
+    ] 2 h * /
+;
+
+: calc-second-derivative (| p |)
+    0.0025 15 * =h
+    [
+            p [ h 0 0 ] + calc-first-derivative .x
+            p [ h 0 0 ] - calc-first-derivative .x
+        -
+            p [ 0 h 0 ] + calc-first-derivative .y
+            p [ 0 h 0 ] - calc-first-derivative .y
+        -
+            p [ 0 0 h ] + calc-first-derivative .z
+            p [ 0 0 h ] - calc-first-derivative .z
+        -
+    ] 2 h * /
+;
+
+: light (| p normal lightpos intensity shadow-intensity sharpness attenuation |)
+    lightpos p - normalize =ivec
+	ivec normal dot 0 1 clamp =incidence
+
+	p ivec .1 * + ivec 1 sharpness / cast-shadow-ray 5 pow shadow-intensity abs / =st
+
+	[
+    	lightpos p - length attenuation swap /
+    	    incidence
+    	    2 -4 [ 0 10 20 ] [ 0 p .yz ] - normalize normal dot abs mix 0 1 clamp 1 swap -
+    	    shadow-intensity 0 >=
+	    select
+    	intensity
+    ] /{ 0 1 clamp } \* st * =v
+    
+        v
+	    .22 v [ 0 10 20 ] [ 0 p .yz ] - normalize normal dot 2 * abs 0 1 clamp mix 0 1 clamp
+	    shadow-intensity 0 >=
+    select
+;
+
+: shade (| p mat |)
+    p calc-normal normalize =normal
+    
+    mat diffuse-mat =tmat
+    tmat .xxx =diffuse
+    tmat .y =shadow-intensity
+    
+    [
+        p normal [ 25 5 -10 ] .85 / .6 shadow-intensity 70 14 light
+        p normal [ 0 6 1.4 ] .2 shadow-intensity 20 30 light
+        p normal [ 0 -1 -45 ] 1 / .4 shadow-intensity 19 21 light
+    ] \+ diffuse * 0 1 clamp =v
+    
+    (( [ v .x 2 pow !!] =v ))
+    (( v 1.05 * =v ))
+    
+    p calc-second-derivative length 10 / 0 1 clamp 1 swap - =sd
+    
+    v sd * 0 1 clamp 1 254 / + 1 min
 ;
 
 : render (| ro rd |)
-    ro rd cast-ray =t
+    ro rd cast-ray =res
+    rd res .x * ro + =hit
     
-    [ rd t * ro + calc-normal t ] [ 0 0 0 0 ] t 100000 != select
+    (( hit calc-second-derivative 500 / =sd ))
+    
+    { [ hit res .y shade res .x ] =ret } { [ 0 0 0 0 ] =ret } res .x 100000 != if
+    ret
 ;
 
 : create-perspective-matrix (| fov aspect-ratio near-plane far-plane |)
@@ -146,11 +311,11 @@ cameraPos =>camera-position
     60 radians resolution .yx \/ 1 5000 create-perspective-matrix
 * =camera-matrix
 
-position 2 / 1 - =real-position
-
 camera-matrix [ [ real-position 2 ] normalize 0 ] * .xyz =ray-direction
-camera-position ray-direction render =normal-depth
-[ normal-depth .xyz 1 + 2 / [ 0 0 0 ] normal-depth .w 0 != select 1 ] ->fragColor
+camera-position ray-direction render =normalDepth
+{
+    [ normalDepth .xyz (( 1 + 2 / )) [ 0 0 0 ] normalDepth .w 0 != select 1 ] ->fragColor
+} fragment-toy cwhen
 
 (( [
     [ 6 ] { 0 print }
